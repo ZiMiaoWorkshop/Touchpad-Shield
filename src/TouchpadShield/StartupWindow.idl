@@ -1,0 +1,8 @@
+namespace TouchpadShield
+{
+    [default_interface]
+    runtimeclass StartupWindow : Microsoft.UI.Xaml.Window
+    {
+        StartupWindow();
+    }
+}

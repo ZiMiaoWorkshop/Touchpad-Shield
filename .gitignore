@@ -1,0 +1,27 @@
+# Build outputs
+src/**/obj/
+src/**/Generated Files/
+packages/
+_pkginspect/
+tools/nuget.exe
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Installers and runtime output (keep directory placeholders)
+Touchpad Shield App/debug/*
+!Touchpad Shield App/debug/.gitkeep
+Touchpad Shield App/beta/*
+!Touchpad Shield App/beta/.gitkeep
+Touchpad Shield App/release/*
+!Touchpad Shield App/release/.gitkeep
+
+# Generated installer assets
+installer/welcome-finish.bmp
+
+# Logs and OS noise
+*.log
+Thumbs.db
+Desktop.ini

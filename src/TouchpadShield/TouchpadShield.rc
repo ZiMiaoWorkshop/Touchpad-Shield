@@ -1,0 +1,74 @@
+#include "resource.h"
+
+#include "winres.h"
+
+#include "GeneratedVersionInfo.h"
+
+
+
+VS_VERSION_INFO VERSIONINFO
+
+ FILEVERSION TOUCHPAD_SHIELD_FILEVERSION
+
+ PRODUCTVERSION TOUCHPAD_SHIELD_PRODUCTVERSION
+
+ FILEFLAGSMASK 0x3fL
+
+#ifdef _DEBUG
+
+ FILEFLAGS 0x1L
+
+#else
+
+ FILEFLAGS 0x0L
+
+#endif
+
+ FILEOS 0x40004L
+
+ FILETYPE 0x1L
+
+ FILESUBTYPE 0x0L
+
+BEGIN
+
+    BLOCK "StringFileInfo"
+
+    BEGIN
+
+        BLOCK "080404b0"
+
+        BEGIN
+
+            VALUE "CompanyName", "ZiMiaoWorkshop"
+
+            VALUE "FileDescription", "Touchpad Shield"
+
+            VALUE "FileVersion", TOUCHPAD_SHIELD_VERSION_STRING
+
+            VALUE "InternalName", "TouchpadShield"
+
+            VALUE "LegalCopyright", "Copyright (C) ZiMiaoWorkshop"
+
+            VALUE "OriginalFilename", "TouchpadShield.exe"
+
+            VALUE "ProductName", "Touchpad Shield"
+
+            VALUE "ProductVersion", TOUCHPAD_SHIELD_VERSION_STRING
+
+        END
+
+    END
+
+    BLOCK "VarFileInfo"
+
+    BEGIN
+
+        VALUE "Translation", 0x804, 1200
+
+    END
+
+END
+
+IDI_APPICON ICON "Assets\\TouchpadShield.ico"
+

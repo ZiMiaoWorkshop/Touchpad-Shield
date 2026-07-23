@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native C++/WinRT XAML build orchestration required by WinAppSDK markup compiler.
+  Mirrors Microsoft.Windows.UI.Xaml.Cpp.targets without importing duplicate Common targets.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ManagedAssembly>false</ManagedAssembly>
+    <GeneratedFilesDir Condition="'$(GeneratedFilesDir)' == ''">Generated Files\</GeneratedFilesDir>
+    <XamlGeneratedOutputPath Condition="'$(XamlGeneratedOutputPath)' == ''">$(GeneratedFilesDir)</XamlGeneratedOutputPath>
+    <GenerateProjectionAssembly>true</GenerateProjectionAssembly>
+    <OnlyCreateWinMD>true</OnlyCreateWinMD>
+    <GenerateBuildCompilePassWinMD Condition="'$(GenerateBuildCompilePassWinMD)' == ''">true</GenerateBuildCompilePassWinMD>
+    <BeforeClCompileTargets>
+      MarkupCompilePass1;
+      $(BeforeClCompileTargets)
+    </BeforeClCompileTargets>
+    <AfterBuildCompileTargets>
+      $(ComputeLinkInputsTargets);
+      CreateWinMD;
+      ComputeGeneratedWinMD;
+      MarkupCompilePass2;
+      ComputeInvalidXamlGenerated;
+      CompileXamlGeneratedFiles;
+      $(AfterBuildCompileTargets)
+    </AfterBuildCompileTargets>
+    <XamlPreLinkDependsOn>
+      $(XamlPreLinkDependsOn);
+      ComputeXamlGeneratedCLOutputs
+    </XamlPreLinkDependsOn>
+    <ComputeCompileInputsTargets>
+      ComputeXamlGeneratedCompileInputs;
+      $(ComputeCompileInputsTargets)
+    </ComputeCompileInputsTargets>
+  </PropertyGroup>
+
+  <Target Name="XamlPreLink" BeforeTargets="Link" DependsOnTargets="$(XamlPreLinkDependsOn)" />
+
+  <Target Name="ComputeGeneratedWinMD">
+    <PropertyGroup>
+      <LocalAssembly Condition="'$(LocalAssembly)' == '' and '%(Link.WindowsMetadataFile)' != ''">%(Link.WindowsMetadataFile)</LocalAssembly>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="ComputeXamlGeneratedCompileInputs"
+          DependsOnTargets="$(ComputeXamlGeneratedCompileInputsDependsOn)"
+          Condition="'@(Page)@(ApplicationDefinition)' != ''">
+    <ItemGroup>
+      <ClCompile Include="$(XamlGeneratedOutputPath)XamlTypeInfo.g.cpp">
+        <CompilerIteration>XamlGenerated</CompilerIteration>
+      </ClCompile>
+      <ClCompile Include="$(XamlGeneratedOutputPath)XamlTypeInfo.Impl.g.cpp" />
+      <ClCompile Condition="'$(OutputType)' == 'Library'" Include="$(XamlGeneratedOutputPath)XamlLibMetadataProvider.g.cpp" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ComputeInvalidXamlGenerated">
+    <ItemGroup>
+      <ClCompile Remove="@(ClCompile)" Condition="'%(ClCompile.CompilerIteration)' == 'XamlGenerated' and !Exists('%(Identity)')" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ComputeXamlGeneratedCLOutputs"
+          DependsOnTargets="ComputeXamlGeneratedCompileInputs;ComputeInvalidXamlGenerated"
+          Condition="'@(ClCompile)' != ''">
+    <ItemGroup>
+      <ClCompile Remove="@(ClCompile)" Condition="'%(ClCompile.CompilerIteration)' == 'XamlGenerated' and !Exists('%(Identity)')" />
+      <Obj Condition="'%(ClCompile.ObjectFileName)'=='' and '%(ClCompile.ExcludedFromBuild)'!='true'" Include="@(ClCompile->'%(Filename).obj')" />
+      <Obj Condition="HasTrailingSlash('%(ClCompile.ObjectFileName)') and '%(ClCompile.ExcludedFromBuild)'!='true'" Include="@(ClCompile->'%(ObjectFileName)%(Filename).obj')" />
+      <Obj Condition="'%(ClCompile.ObjectFileName)' != '' and !HasTrailingSlash('%(ClCompile.ObjectFileName)') and '%(ClCompile.ExcludedFromBuild)'!='true'" Include="@(ClCompile->'%(ObjectFileName)')" />
+      <Link Include="@(Obj->WithMetadataValue('CompilerIteration', 'XamlGenerated')->ClearMetadata())" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="Version">
+
+    <!-- 语义化版本号（人工维护） -->
+
+    <TouchpadShieldMajorVersion>1</TouchpadShieldMajorVersion>
+
+    <TouchpadShieldMinorVersion>0</TouchpadShieldMinorVersion>
+
+    <TouchpadShieldPatchVersion>0</TouchpadShieldPatchVersion>
+
+    <!-- 构建号（源码变动时递增，4 位数字） -->
+
+    <TouchpadShieldBuildNumber>0024</TouchpadShieldBuildNumber>
+
+  </PropertyGroup>
+
+</Project>

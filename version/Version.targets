@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+
+
+  <PropertyGroup>
+
+    <TouchpadShieldSemVer>$(TouchpadShieldMajorVersion).$(TouchpadShieldMinorVersion).$(TouchpadShieldPatchVersion)</TouchpadShieldSemVer>
+
+    <TouchpadShieldVersionDisplay>$(TouchpadShieldSemVer) build $(TouchpadShieldBuildNumber)</TouchpadShieldVersionDisplay>
+
+    <TouchpadShieldBuildNumberInt>$([System.Int32]::Parse('$(TouchpadShieldBuildNumber)'))</TouchpadShieldBuildNumberInt>
+
+    <!-- Windows manifest 仅支持四段数字：版本号 + 构建号（整数） -->
+
+    <TouchpadShieldAssemblyVersion>$(TouchpadShieldSemVer).$(TouchpadShieldBuildNumberInt)</TouchpadShieldAssemblyVersion>
+
+    <!-- UI / 预处理器使用的完整展示字符串 -->
+
+    <TouchpadShieldVersion>$(TouchpadShieldVersionDisplay)</TouchpadShieldVersion>
+
+  </PropertyGroup>
+
+
+
+  <Target Name="GenerateVersionInfoHeader" BeforeTargets="ResourceCompile">
+
+    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
+
+    <WriteLinesToFile
+
+      File="$(IntDir)GeneratedVersionInfo.h"
+
+      Overwrite="true"
+
+      Lines="#pragma once
+
+#define TOUCHPAD_SHIELD_FILEVERSION $(TouchpadShieldMajorVersion),$(TouchpadShieldMinorVersion),$(TouchpadShieldPatchVersion),$(TouchpadShieldBuildNumberInt)
+
+#define TOUCHPAD_SHIELD_PRODUCTVERSION TOUCHPAD_SHIELD_FILEVERSION
+
+#define TOUCHPAD_SHIELD_SEMVER_STRING &quot;$(TouchpadShieldSemVer)&quot;
+
+#define TOUCHPAD_SHIELD_BUILD_STRING &quot;$(TouchpadShieldBuildNumber)&quot;
+
+#define TOUCHPAD_SHIELD_VERSION_STRING &quot;$(TouchpadShieldVersionDisplay)&quot;" />
+
+  </Target>
+
+
+
+  <Target Name="GenerateAppManifest" BeforeTargets="PrepareForBuild">
+
+    <MakeDir Directories="$(IntDir)" Condition="!Exists('$(IntDir)')" />
+
+    <Copy SourceFiles="$(ProjectDir)app.manifest" DestinationFiles="$(IntDir)app.manifest" OverwriteReadOnlyFiles="true" />
+
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\..\scripts\patch-app-manifest.ps1&quot; -ManifestPath &quot;$(IntDir)app.manifest&quot; -AssemblyVersion &quot;$(TouchpadShieldAssemblyVersion)&quot;" />
+
+  </Target>
+
+
+
+</Project>
+
