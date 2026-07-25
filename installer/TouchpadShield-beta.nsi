@@ -16,9 +16,9 @@
 
 !define APP_SEMVER "1.0.0"
 
-!define APP_BUILD "0024"
+!define APP_BUILD "0025"
 
-!define APP_VERSION "1.0.0 build 0024"
+!define APP_VERSION "1.0.0 build 0025"
 
 !define MUI_ICON "TouchpadShield.ico"
 

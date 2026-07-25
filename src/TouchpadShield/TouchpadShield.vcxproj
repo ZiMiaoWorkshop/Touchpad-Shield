@@ -205,8 +205,17 @@
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" Condition="Exists('$(VCTargetsPath)\BuildCustomizations\masm.targets')" />
   </ImportGroup>
-  <Target Name="CopyConfigAndAssets" AfterTargets="Build">
-    <Copy SourceFiles="..\..\config\TouchpadPhysicalSize.csv" DestinationFolder="$(OutDir)config\" SkipUnchangedFiles="true" />
+  <PropertyGroup>
+    <InitialTargets>CopyConfigFile</InitialTargets>
+  </PropertyGroup>
+  <Target Name="CopyConfigFile"
+          Inputs="$(ProjectDir)..\..\config\TouchpadPhysicalSize.csv"
+          Outputs="$(OutDir)config\TouchpadPhysicalSize.csv">
+    <MakeDir Directories="$(OutDir)config\" />
+    <Copy SourceFiles="$(ProjectDir)..\..\config\TouchpadPhysicalSize.csv"
+          DestinationFiles="$(OutDir)config\TouchpadPhysicalSize.csv" />
+  </Target>
+  <Target Name="CopyAssets" AfterTargets="Build">
     <Copy SourceFiles="Assets\TouchpadShieldLogo.png" DestinationFolder="$(OutDir)Assets\" SkipUnchangedFiles="true" />
     <Copy SourceFiles="Assets\TouchpadShield.ico" DestinationFolder="$(OutDir)Assets\" SkipUnchangedFiles="true" />
   </Target>

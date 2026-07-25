@@ -47,6 +47,15 @@ try {
         throw "Build failed with exit code $LASTEXITCODE"
     }
 
+    $configSource = Join-Path $Root "config\TouchpadPhysicalSize.csv"
+    if (-not (Test-Path $configSource)) {
+        throw "Config file not found: $configSource"
+    }
+    $configDestDir = Join-Path $outputDir "config"
+    New-Item -ItemType Directory -Force -Path $configDestDir | Out-Null
+    Copy-Item -LiteralPath $configSource -Destination (Join-Path $configDestDir "TouchpadPhysicalSize.csv") -Force
+    Write-Host "Synced config from $configSource"
+
     & (Join-Path $Root "scripts\bump-build.ps1") -Phase Finalize
     & (Join-Path $Root "scripts\sign-exe.ps1") -ExePath (Join-Path $outputDir "TouchpadShield.exe")
     Write-Host "Build completed. Output: $outputDir"
