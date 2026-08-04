@@ -1,10 +1,10 @@
 # Touchpad Shield
 
-**Touchpad Shield** is a Windows desktop utility that reduces accidental touchpad input while typing. It exposes Precision Touchpad (PTP) tuning options—click sensitivity, touchpad sensitivity, tap-to-click, **Curtains** (edge buffer zones), and **Super Curtains** (stronger palm-rejection zones)—in one place, following Microsoft's [Precision Touchpad tuning guidelines](https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/touchpad-tuning-guidelines).
+**Touchpad Shield** 是一款 Windows 桌面工具，用于在打字时减少手掌、手腕误触触控板导致的光标漂移与误点击。它将 Precision Touchpad (PTP) 调优选项集中在一处——单击灵敏度、触控板灵敏度、轻拍单击、**Curtains**（缓冲区域）与 **Super Curtains**（防误触区域）——并遵循微软 [Precision Touchpad tuning guidelines](https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/touchpad-tuning-guidelines)。
 
 Designed and built by **ZiMiaoWorkshop**.
 
-**Current version:** 1.0.0 build 0025
+**Current version:** 1.0.0 build 0031
 
 ---
 
@@ -12,6 +12,7 @@ Designed and built by **ZiMiaoWorkshop**.
 
 - **Sensitivity controls** — Click Force Sensitivity (free adjust or Windows-aligned snapping at 0 / 50 / 100), AAP threshold (touchpad sensitivity), and tap-to-click toggle
 - **Smart Area & Smart Edge** — Configure Curtains and Super Curtains per edge in millimeters; live diagram with yellow (buffer) and red (palm-rejection) overlays
+- **Overlap warnings** — When Smart Edge ≥ Smart Area on any edge, a compact two-line warning lists affected edges (e.g. top / bottom / left / right)
 - **Laptop-aware sizing** — Read BIOS identity, match touchpad physical size from `TouchpadPhysicalSize.csv`, apply presets, or export your own entry
 - **Instant vs reboot settings** — HKCU settings (click / tap / AAP) apply immediately via `SystemParametersInfo`; HKLM Curtain changes prompt for reboot
 - **Native Windows UI** — WinUI 3, system theme integration, PerMonitorV2 DPI scaling, bilingual section labels (Chinese / English)
@@ -73,13 +74,29 @@ On every build, this file is **always synced** to the output directory (`config/
 
 ---
 
+## Architecture
+
+```text
+┌─────────────────────────────────────┐
+│  Presentation (XAML)                │  MainWindow, StartupWindow, App.xaml
+├─────────────────────────────────────┤
+│  Application (MainWindow.xaml.cpp)  │  UI events, LoadAllData, orchestration
+├─────────────────────────────────────┤
+│  Services (interface layer)         │  Registry, SPI, BIOS, CSV, DPI, diagram
+└─────────────────────────────────────┘
+```
+
+Key services live under `src/TouchpadShield/Services/`. See the developer guide for module-level details.
+
+---
+
 ## Project Structure
 
 ```text
 Touchpad Shield/
 ├── config/                 # TouchpadPhysicalSize.csv (edit here)
 ├── installer/              # NSIS scripts
-├── PRD/                    # Product requirements & developer guide (Chinese)
+├── PRD/                    # Developer guide (Chinese)
 ├── scripts/                # Build, sign, version, icon scripts
 ├── src/TouchpadShield/     # WinUI 3 app (C++/WinRT)
 ├── Touchpad Shield App/    # Build outputs (debug / beta / release)
@@ -92,7 +109,7 @@ Touchpad Shield/
 
 - **Semantic version** (`MAJOR.MINOR.PATCH`) — maintained manually in `version/Version.props`
 - **Build number** (4 digits) — auto-incremented when source fingerprint changes (`scripts/bump-build.ps1`)
-- **Display format** — `1.0.0 build 0025`
+- **Display format** — `1.0.0 build 0031`
 
 ---
 
@@ -100,8 +117,7 @@ Touchpad Shield/
 
 | Document | Description |
 |----------|-------------|
-| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | Developer guide (implementation details, build rules, PRD diff) |
-| [`PRD/Touchpad_Shield_PRD.md`](PRD/Touchpad_Shield_PRD.md) | Original product requirements (archive) |
+| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | Developer guide — UI spec, architecture, build rules, module map (Chinese) |
 | [`.cursor/rules/touchpad-shield-build.mdc`](.cursor/rules/touchpad-shield-build.mdc) | Build policy for automated tooling |
 
 ---

@@ -531,22 +531,25 @@ namespace winrt::TouchpadShield::implementation
         input.mmPerDip = m_displayScale.MillimetersPerPixel(displayMetrics);
 
         const auto result = m_diagramRenderer.Render(DiagramCanvas(), input);
-        if (result.warnings.empty())
+        if (result.overlapEdgeLabels.empty())
         {
             DiagramWarningText().Text(L"");
         }
         else
         {
-            std::wstring combined;
-            for (auto const& warning : result.warnings)
+            std::wstring edgeList;
+            for (auto const& edgeLabel : result.overlapEdgeLabels)
             {
-                if (!combined.empty())
+                if (!edgeList.empty())
                 {
-                    combined += L"\n";
+                    edgeList += L"、";
                 }
-                combined += warning;
+                edgeList += edgeLabel;
             }
-            DiagramWarningText().Text(combined);
+
+            const std::wstring summary =
+                L"以下触控板区域的【防误触区域】≥ 【缓冲区域】，这些区域将完全以【防误触区域】的处理逻辑进行控制：";
+            DiagramWarningText().Text(summary + L"\n" + edgeList);
         }
     }
 

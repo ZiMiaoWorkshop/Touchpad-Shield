@@ -28,7 +28,7 @@ namespace TouchpadShield::Services
 
     struct DiagramRenderResult
     {
-        std::vector<std::wstring> warnings;
+        std::vector<std::wstring> overlapEdgeLabels;
     };
 
     class TouchpadDiagramRenderer

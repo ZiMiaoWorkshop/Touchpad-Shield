@@ -14,7 +14,7 @@
 
     <!-- 构建号（源码变动时递增，4 位数字） -->
 
-    <TouchpadShieldBuildNumber>0025</TouchpadShieldBuildNumber>
+    <TouchpadShieldBuildNumber>0032</TouchpadShieldBuildNumber>
 
   </PropertyGroup>
 

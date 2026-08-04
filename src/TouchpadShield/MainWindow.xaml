@@ -283,7 +283,7 @@
                 <StackPanel Grid.Row="2" Spacing="8">
                     <TextBlock Text="触控板示意图 (Touchpad Diagram)" FontSize="20" FontWeight="SemiBold" />
                     <Border BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
-                        <Canvas x:Name="DiagramCanvas" Height="380" SizeChanged="DiagramCanvas_SizeChanged" />
+                        <Canvas x:Name="DiagramCanvas" Height="370" SizeChanged="DiagramCanvas_SizeChanged" />
                     </Border>
                     <StackPanel Orientation="Horizontal" Spacing="16">
                         <StackPanel Orientation="Horizontal" Spacing="8">

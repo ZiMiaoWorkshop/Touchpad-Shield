@@ -34,7 +34,7 @@ namespace TouchpadShield::Services
         }
         if (canvasHeight < 1.0)
         {
-            canvasHeight = 380.0;
+            canvasHeight = 370.0;
         }
 
         constexpr double canvasMargin = 8.0;
@@ -102,18 +102,18 @@ namespace TouchpadShield::Services
         drawEdgeOverlay(0, 0, leftSuperPx, heightPx, red);
         drawEdgeOverlay(0, widthPx - rightSuperPx, rightSuperPx, heightPx, red);
 
-        auto checkWarning = [&](std::wstring const& edge, double superMm, double curtainMm)
+        auto checkOverlap = [&](std::wstring const& edgeLabel, double superMm, double curtainMm)
         {
             if (superMm >= curtainMm && superMm > 0.0 && curtainMm > 0.0)
             {
-                result.warnings.push_back(edge + L"\xFF1A\x9632\x8BEF\x89E6\x533A\x57DF >= \x7F13\x51B2\x533A\x57DF\xFF0C\x8BE5\x533A\x57DF\x5C06\x5B8C\x5168\x4EE5\x9632\x8BEF\x89E6\x533A\x57DF\x903B\x8F91\x63A7\x5236\x3002");
+                result.overlapEdgeLabels.push_back(edgeLabel);
             }
         };
 
-        checkWarning(L"\x4E0A", input.superCurtain.topMm, input.curtain.topMm);
-        checkWarning(L"\x4E0B", input.superCurtain.bottomMm, input.curtain.bottomMm);
-        checkWarning(L"\x5DE6", input.superCurtain.leftMm, input.curtain.leftMm);
-        checkWarning(L"\x53F3", input.superCurtain.rightMm, input.curtain.rightMm);
+        checkOverlap(L"触控板【上方】", input.superCurtain.topMm, input.curtain.topMm);
+        checkOverlap(L"触控板【下方】", input.superCurtain.bottomMm, input.curtain.bottomMm);
+        checkOverlap(L"触控板【左侧】", input.superCurtain.leftMm, input.curtain.leftMm);
+        checkOverlap(L"触控板【右侧】", input.superCurtain.rightMm, input.curtain.rightMm);
 
         return result;
     }

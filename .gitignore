@@ -25,3 +25,6 @@ installer/welcome-finish.bmp
 *.log
 Thumbs.db
 Desktop.ini
+
+# Archived / local-only product draft (superseded by 开发指导)
+PRD/Touchpad_Shield_PRD.md
