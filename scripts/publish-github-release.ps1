@@ -75,6 +75,10 @@ try {
 - ``TouchpadPhysicalSize.csv`` 也可在仓库 ``config/`` 目录获取
 "@
 
+    $notesFile = Join-Path $env:TEMP "touchpad-shield-release-$Tag.md"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($notesFile, $releaseNotes, $utf8NoBom)
+
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     gh release view $Tag --repo $Repo 2>$null | Out-Null
@@ -82,7 +86,10 @@ try {
     $ErrorActionPreference = $previousErrorAction
 
     if ($releaseExists) {
-        Write-Host "Release $Tag already exists. Uploading assets ..."
+        Write-Host "Release $Tag already exists. Updating notes and uploading assets ..."
+        gh release edit $Tag `
+            --repo $Repo `
+            --notes-file $notesFile
         gh release upload $Tag `
             --repo $Repo `
             --clobber `
@@ -94,7 +101,7 @@ try {
         gh release create $Tag `
             --repo $Repo `
             --title $releaseTitle `
-            --notes $releaseNotes `
+            --notes-file $notesFile `
             $installer.FullName `
             $ConfigCsv
     }
