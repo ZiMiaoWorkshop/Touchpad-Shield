@@ -506,6 +506,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 |------|------|
 | `Touchpad_Shield_开发指导.md`（本文档） | 实现细节、界面需求、架构、构建方案 |
 | `README.md` | 项目概览、快速构建、对外说明 |
+| `LICENSE` | Apache License 2.0（Copyright 2026 ZiMiaoWorkshop） |
 | `.cursor/rules/touchpad-shield-build.mdc` | Cursor 构建规则（精简版） |
 
 功能或构建流程变更时，应同步更新**开发指导**、**README** 与 **build 规则**；涉及产品行为变更时，需与产品负责人确认后再改文档。
