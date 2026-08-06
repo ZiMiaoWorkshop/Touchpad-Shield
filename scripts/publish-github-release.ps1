@@ -75,8 +75,13 @@ try {
 - ``TouchpadPhysicalSize.csv`` 也可在仓库 ``config/`` 目录获取
 "@
 
-    $existingRelease = gh release view $Tag --repo $Repo 2>$null
-    if ($LASTEXITCODE -eq 0) {
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    gh release view $Tag --repo $Repo 2>$null | Out-Null
+    $releaseExists = ($LASTEXITCODE -eq 0)
+    $ErrorActionPreference = $previousErrorAction
+
+    if ($releaseExists) {
         Write-Host "Release $Tag already exists. Uploading assets ..."
         gh release upload $Tag `
             --repo $Repo `
