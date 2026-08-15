@@ -4,7 +4,7 @@
 
 Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 
-**Current version:** 1.0.0 build 0032 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**Current version:** 1.0.1 build 0033 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
 
 ---
 
@@ -31,6 +31,24 @@ Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 - **Laptop-aware sizing** — BIOS identity matching via `TouchpadPhysicalSize.csv`; apply presets or export your own
 - **Instant vs reboot** — HKCU settings apply immediately via `SystemParametersInfo`; HKLM Curtain changes require reboot
 - **Native Windows UI** — WinUI 3, system theme, PerMonitorV2 DPI, bilingual labels (Chinese / English)
+- **External HID auto toggle** — monitor selected HID devices (VID/PID); disable built-in touchpad when any is connected, re-enable when all are removed (`Status\Enabled` via `Ctrl+Win+F24`)
+- **System tray & startup** — optional minimize-to-tray on close and Run-at-logon; forced on when HID monitoring is enabled
+
+---
+
+## External HID & touchpad toggle (v1.0.1)
+
+This is **separate** from PTP tuning keys above. It toggles the Windows touchpad master switch:
+
+| Item | Detail |
+|------|--------|
+| Registry read | `HKCU\...\PrecisionTouchPad\Status\Enabled` |
+| Toggle method | `SendInput`: `Ctrl+Win+F24` (system toggle key) |
+| Device detection | `WM_DEVICECHANGE` + `RegisterDeviceNotification` (not polling) |
+| Monitored devices | User-selected HID list (VID/PID); built-in touchpad excluded from picker |
+| Persistence | `Software\ZiMiaoWorkshop\TouchpadShield` |
+
+When HID monitoring is on, **Run at startup** and **Minimize to tray on close** are forced enabled so background plug/unplug handling keeps working.
 
 ---
 
@@ -43,6 +61,7 @@ Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 | 轻拍单击 / Tap to click | `TapsEnabled` | HKCU |
 | 缓冲区域 / Curtains (Smart Area) | `CurtainTop/Bottom/Left/Right` | HKLM |
 | 防误触区域 / Super Curtains (Smart Edge) | `SuperCurtainTop/Bottom/Left/Right` | HKLM |
+| 触控板总开关 / Touchpad on-off | `Status\Enabled` | HKCU (read + F24 toggle; not direct write) |
 
 Registry path: `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\PrecisionTouchPad` (and HKLM for Curtains).
 

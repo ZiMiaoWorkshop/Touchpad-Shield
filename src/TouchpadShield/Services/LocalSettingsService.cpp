@@ -43,6 +43,164 @@ namespace TouchpadShield::Services
             mode == ClickSensitivityMode::FreeAdjust ? L"FreeAdjust" : L"MatchWindowsSettings");
     }
 
+    bool LocalSettingsService::LoadBoolSetting(std::wstring const& name, bool defaultValue) const
+    {
+        const auto value = ReadStringValue(name);
+        if (!value.has_value())
+        {
+            return defaultValue;
+        }
+        return value.value() == L"1";
+    }
+
+    void LocalSettingsService::SaveBoolSetting(std::wstring const& name, bool value) const
+    {
+        WriteStringValue(name, value ? L"1" : L"0");
+    }
+
+    bool LocalSettingsService::LoadHidAutoTouchpadEnabled() const
+    {
+        return LoadBoolSetting(L"HidAutoTouchpadEnabled", false);
+    }
+
+    void LocalSettingsService::SaveHidAutoTouchpadEnabled(bool enabled) const
+    {
+        SaveBoolSetting(L"HidAutoTouchpadEnabled", enabled);
+    }
+
+    bool LocalSettingsService::LoadRunAtStartup() const
+    {
+        return LoadBoolSetting(L"RunAtStartup", false);
+    }
+
+    void LocalSettingsService::SaveRunAtStartup(bool enabled) const
+    {
+        SaveBoolSetting(L"RunAtStartup", enabled);
+    }
+
+    bool LocalSettingsService::LoadMinimizeToTrayOnClose() const
+    {
+        return LoadBoolSetting(L"MinimizeToTrayOnClose", false);
+    }
+
+    void LocalSettingsService::SaveMinimizeToTrayOnClose(bool enabled) const
+    {
+        SaveBoolSetting(L"MinimizeToTrayOnClose", enabled);
+    }
+
+    std::vector<MonitoredHidDevice> LocalSettingsService::LoadMonitoredHidDevices() const
+    {
+        const auto json = ReadStringValue(L"MonitoredHidDevices");
+        if (!json.has_value() || json->empty())
+        {
+            return {};
+        }
+        return DeserializeMonitoredDevices(json.value());
+    }
+
+    void LocalSettingsService::SaveMonitoredHidDevices(std::vector<MonitoredHidDevice> const& devices) const
+    {
+        WriteStringValue(L"MonitoredHidDevices", SerializeMonitoredDevices(devices));
+    }
+
+    std::wstring LocalSettingsService::SerializeMonitoredDevices(std::vector<MonitoredHidDevice> const& devices)
+    {
+        std::wstring json = L"[";
+        for (size_t i = 0; i < devices.size(); ++i)
+        {
+            if (i > 0)
+            {
+                json += L",";
+            }
+
+            auto escape = [](std::wstring const& text)
+            {
+                std::wstring escaped;
+                escaped.reserve(text.size());
+                for (wchar_t ch : text)
+                {
+                    if (ch == L'\\' || ch == L'"')
+                    {
+                        escaped += L'\\';
+                    }
+                    escaped += ch;
+                }
+                return escaped;
+            };
+
+            json += L"{\"vid\":\"" + escape(devices[i].vid) +
+                L"\",\"pid\":\"" + escape(devices[i].pid) +
+                L"\",\"label\":\"" + escape(devices[i].label) + L"\"}";
+        }
+        json += L"]";
+        return json;
+    }
+
+    std::wstring LocalSettingsService::ExtractJsonString(
+        std::wstring const& json,
+        std::wstring const& key,
+        size_t& pos)
+    {
+        const std::wstring token = L"\"" + key + L"\":\"";
+        const size_t start = json.find(token, pos);
+        if (start == std::wstring::npos)
+        {
+            return L"";
+        }
+
+        size_t cursor = start + token.size();
+        std::wstring value;
+        while (cursor < json.size())
+        {
+            const wchar_t ch = json[cursor++];
+            if (ch == L'\\' && cursor < json.size())
+            {
+                value += json[cursor++];
+                continue;
+            }
+            if (ch == L'"')
+            {
+                break;
+            }
+            value += ch;
+        }
+
+        pos = cursor;
+        return value;
+    }
+
+    std::vector<MonitoredHidDevice> LocalSettingsService::DeserializeMonitoredDevices(std::wstring const& json)
+    {
+        std::vector<MonitoredHidDevice> devices;
+        size_t pos = 0;
+        while (pos < json.size())
+        {
+            const size_t objectStart = json.find(L'{', pos);
+            if (objectStart == std::wstring::npos)
+            {
+                break;
+            }
+
+            pos = objectStart + 1;
+            MonitoredHidDevice device{};
+            device.vid = ExtractJsonString(json, L"vid", pos);
+            device.pid = ExtractJsonString(json, L"pid", pos);
+            device.label = ExtractJsonString(json, L"label", pos);
+            if (!device.vid.empty() && !device.pid.empty())
+            {
+                devices.push_back(std::move(device));
+            }
+
+            const size_t objectEnd = json.find(L'}', pos);
+            if (objectEnd == std::wstring::npos)
+            {
+                break;
+            }
+            pos = objectEnd + 1;
+        }
+        return devices;
+    }
+
     std::optional<std::wstring> LocalSettingsService::ReadStringValue(std::wstring const& name) const
     {
         HKEY key = nullptr;

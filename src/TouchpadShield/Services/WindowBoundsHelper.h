@@ -6,7 +6,7 @@ namespace TouchpadShield::Services
 {
     struct WindowBoundsSpec
     {
-        int logicalClientWidth{ 1280 };
+        int logicalClientWidth{ 1560 };
         int logicalClientHeight{ 900 };
     };
 

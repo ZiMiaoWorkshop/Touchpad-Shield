@@ -7,6 +7,7 @@ class Logger
 {
 public:
     static void Info(std::wstring const& message);
+    static void Warning(std::wstring const& message);
     static void Error(std::wstring const& message);
 
 private:

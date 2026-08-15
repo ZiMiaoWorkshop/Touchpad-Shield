@@ -141,6 +141,14 @@
     <ClInclude Include="Services\DisplayScaleService.h" />
     <ClInclude Include="Services\TouchpadDiagramRenderer.h" />
     <ClInclude Include="Services\RegistryUserContext.h" />
+    <ClInclude Include="Services\TouchpadStatusService.h" />
+    <ClInclude Include="Services\TouchpadToggleService.h" />
+    <ClInclude Include="Services\HidDeviceTypes.h" />
+    <ClInclude Include="Services\HidDeviceEnumerationService.h" />
+    <ClInclude Include="Services\HidDeviceMonitorService.h" />
+    <ClInclude Include="Services\TrayIconService.h" />
+    <ClInclude Include="Services\AutoStartService.h" />
+    <ClInclude Include="Services\SingleInstanceService.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -168,6 +176,14 @@
     <ClCompile Include="Services\TouchpadDiagramRenderer.cpp" />
     <ClCompile Include="Services\RegistryUserContext.cpp" />
     <ClCompile Include="Services\TouchpadParametersService.cpp" />
+    <ClCompile Include="Services\TouchpadStatusService.cpp" />
+    <ClCompile Include="Services\TouchpadToggleService.cpp" />
+    <ClCompile Include="Services\HidDeviceGuids.cpp" />
+    <ClCompile Include="Services\HidDeviceEnumerationService.cpp" />
+    <ClCompile Include="Services\HidDeviceMonitorService.cpp" />
+    <ClCompile Include="Services\TrayIconService.cpp" />
+    <ClCompile Include="Services\AutoStartService.cpp" />
+    <ClCompile Include="Services\SingleInstanceService.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml" />

@@ -12,11 +12,11 @@
 
 !define APP_PUBLISHER "ZiMiaoWorkshop"
 
-!define APP_SEMVER "1.0.0"
+!define APP_SEMVER "1.0.1"
 
-!define APP_BUILD "0032"
+!define APP_BUILD "0054"
 
-!define APP_VERSION "1.0.0 build 0032"
+!define APP_VERSION "1.0.1 build 0054"
 
 !define MUI_ICON "TouchpadShield.ico"
 

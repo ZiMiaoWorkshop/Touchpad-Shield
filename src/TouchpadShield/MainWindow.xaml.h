@@ -2,16 +2,22 @@
 
 #include "MainWindow.g.h"
 #include "MainWindow.xaml.g.h"
+#include "Services/AutoStartService.h"
 #include "Services/BiosService.h"
 #include "Services/CsvConfigService.h"
 #include "Services/DisplayScaleService.h"
+#include "Services/HidDeviceEnumerationService.h"
+#include "Services/HidDeviceMonitorService.h"
+#include "Services/HidDeviceTypes.h"
 #include "Services/LocalSettingsService.h"
 #include "Services/RegistryService.h"
 #include "Services/TouchpadDiagramRenderer.h"
+#include "Services/TrayIconService.h"
 #include "Services/WindowBoundsHelper.h"
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace winrt::TouchpadShield::implementation
 {
@@ -20,6 +26,9 @@ namespace winrt::TouchpadShield::implementation
         MainWindow();
 
         winrt::Windows::Foundation::IAsyncAction InitializeAsync();
+        void CompletePlatformSetup();
+        void LaunchToTrayOnly();
+        void RequestExit();
 
         void RefreshButton_Click(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
         void ClickSensitivitySlider_ValueChanged(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::Controls::Primitives::RangeBaseValueChangedEventArgs const& args);
@@ -36,6 +45,10 @@ namespace winrt::TouchpadShield::implementation
         void MoreTouchpadSettings_Click(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
         winrt::Windows::Foundation::IAsyncAction RestartButton_Click(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
         void DiagramCanvas_SizeChanged(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::SizeChangedEventArgs const& args);
+        void HidAutoTouchpadSwitch_Toggled(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
+        void HidRefreshButton_Click(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
+        void RunAtStartupSwitch_Toggled(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
+        void MinimizeToTraySwitch_Toggled(winrt::Windows::Foundation::IInspectable const& sender, Microsoft::UI::Xaml::RoutedEventArgs const& args);
 
     private:
         ::TouchpadShield::Services::RegistryService m_registry{};
@@ -44,7 +57,14 @@ namespace winrt::TouchpadShield::implementation
         ::TouchpadShield::Services::DisplayScaleService m_displayScale{};
         ::TouchpadShield::Services::WindowBoundsHelper m_windowBounds{};
         ::TouchpadShield::Services::TouchpadDiagramRenderer m_diagramRenderer{};
+        ::TouchpadShield::Services::HidDeviceEnumerationService m_hidEnumeration{};
+        ::TouchpadShield::Services::HidDeviceMonitorService m_hidMonitor{};
+        ::TouchpadShield::Services::TrayIconService m_trayIcon{};
+        ::TouchpadShield::Services::AutoStartService m_autoStart{};
         std::unique_ptr<::TouchpadShield::Services::CsvConfigService> m_csvService{};
+
+        std::vector<::TouchpadShield::Services::HidDeviceInfo> m_availableHidDevices{};
+        std::vector<::TouchpadShield::Services::MonitoredHidDevice> m_monitoredHidDevices{};
 
         ::TouchpadShield::Services::BiosIdentity m_biosIdentity{};
         std::optional<::TouchpadShield::Services::TouchpadPhysicalSizeEntry> m_matchedEntry{};
@@ -54,6 +74,8 @@ namespace winrt::TouchpadShield::implementation
         bool m_curtainRestartPending{ false };
         bool m_csvFileExists{ false };
         bool m_initialWindowSizeApplied{ false };
+        bool m_forceExit{ false };
+        bool m_hidSettingsLoading{ false };
 
         void InitializeWindow();
         void ApplyWindowIcon();
@@ -74,6 +96,22 @@ namespace winrt::TouchpadShield::implementation
         void UpdateRestartButtonVisibility();
         void PerformSystemReboot();
         std::filesystem::path ResolveCsvPath() const;
+
+        void LoadHidSettingsUi();
+        void RefreshAvailableHidDevices();
+        void RefreshHidDeviceListsUi();
+        void AddMonitoredHidDevice(::TouchpadShield::Services::HidDeviceInfo const& device);
+        void RemoveMonitoredHidDevice(size_t index);
+        void SaveMonitoredHidDevices();
+        void ApplyHidPolicyLocks();
+        void UpdateTrayIconState();
+        void StartHidMonitoring();
+        void StopHidMonitoring();
+        bool ShouldMinimizeToTrayOnClose() const;
+        void HideToTray();
+        void ShowFromTray();
+        HWND GetWindowHandle() const;
+        void SetupWindowCloseBehavior();
     };
 }
 

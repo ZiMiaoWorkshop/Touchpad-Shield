@@ -57,6 +57,11 @@ void Logger::Info(std::wstring const& message)
     Write(L"INFO", message);
 }
 
+void Logger::Warning(std::wstring const& message)
+{
+    Write(L"WARN", message);
+}
+
 void Logger::Error(std::wstring const& message)
 {
     Write(L"ERROR", message);

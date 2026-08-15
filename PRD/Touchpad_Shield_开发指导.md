@@ -130,7 +130,7 @@ flowchart TB
 | 区域 | 内容 |
 |------|------|
 | **顶部** | 软件名称「Touchpad Shield」、**刷新数据**按钮、右侧超链接 **更多触控板功能设定**（打开 `ms-settings:devices-touchpad`） |
-| **中部** | 左右两栏（列宽比 **4:6**）。左栏：灵敏度设定 + 屏蔽区域设定；右栏：笔记本型号、触控板物理尺寸、触控板示意图 |
+| **中部** | 左 / 中 / 右三栏（列宽比 **4:6:3**）。左栏：灵敏度设定 + 屏蔽区域设定；中栏：笔记本型号、触控板物理尺寸、触控板示意图；右栏：外接 HID 与触控板自动启停 |
 | **底部** | 左侧（条件显示）：屏蔽区域变更重启提示 + **重启**按钮；右侧：作者信息 + 版本号 |
 
 **窗口与间距：**
@@ -138,8 +138,29 @@ flowchart TB
 - 底部栏固定 `MinHeight="38"`，避免重启提示出现/消失时作者信息与版本号位置跳动。
 
 **窗口尺寸：**
-- 最小窗口 **1280×900**（逻辑像素），通过 XAML `MinWidth/MinHeight` 与 `WindowBoundsHelper` 的 `WM_GETMINMAXINFO` 双重约束；
-- 首次 `Activated` 时将客户区调整为 1280×900 逻辑尺寸。
+- 最小窗口 **1560×900**（逻辑像素），通过 XAML `MinWidth/MinHeight` 与 `WindowBoundsHelper` 的 `WM_GETMINMAXINFO` 双重约束；
+- 首次 `Activated` 时将客户区调整为 1560×900 逻辑尺寸。
+
+---
+
+### 3.3.1 右栏 — 外接 HID 与触控板自动启停 (External HID & Touchpad Auto Toggle)
+
+（1）启用后监听 `WM_DEVICECHANGE`（`RegisterDeviceNotification` + `GUID_DEVINTERFACE_HID`），**不做定时轮询**。
+
+（2）用户从当前已连接 HID 列表（友好名 + VID/PID）添加监控设备；枚举时**默认排除内置 Precision Touchpad**。
+
+（3）行为：
+- 名单内任一设备在线且 `Status\Enabled==1` → `SendInput` `Ctrl+Win+F24` 关闭触控板；
+- 名单内设备全部离线且 `Status\Enabled==0` → 发送 F24 开启；
+- 启动或开启功能时做一次全量对齐（处理启动前已插入设备）。
+
+（4）切换后确认：`SendInput` 后等待 `TouchpadToggleVerifyDelayMs`（默认 **500ms**，代码常量可调），再读 `Status\Enabled`；未达期望则最多补偿 1 次。
+
+（5）启用 HID 侦测时强制并锁定「开机自启动」「点击 X 缩小到系统托盘」；托盘在两项任一开启时创建。
+
+（6）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`）：`HidAutoTouchpadEnabled`、`MonitoredHidDevices`（JSON）、`RunAtStartup`、`MinimizeToTrayOnClose`。
+
+（7）自启：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TouchpadShield` → `"<exe路径>" --startup`；带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与 HID 监听（仍会触发 UAC）。
 
 ---
 
@@ -474,6 +495,13 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | 窗口边界 | `Services/WindowBoundsHelper.*` | 最小尺寸、初始客户区、DPI 换算 |
 | 窗口图标 | `Services/WindowIconHelper.*` | 从 Assets 或嵌入资源加载 ICO |
 | 日志 | `Services/Logger.*` | Debug 文件日志 |
+| 触控板状态 | `Services/TouchpadStatusService.*` | 只读 `Status\Enabled` |
+| 触控板切换 | `Services/TouchpadToggleService.*` | SendInput F24 + 延迟确认与补偿 |
+| HID 枚举 | `Services/HidDeviceEnumerationService.*` | SetupAPI 枚举 HID、VID/PID 匹配 |
+| HID 监控 | `Services/HidDeviceMonitorService.*` | 设备通知、插拔 reconcile |
+| 托盘 | `Services/TrayIconService.*` | Shell_NotifyIcon、菜单 |
+| 自启 | `Services/AutoStartService.*` | HKCU Run |
+| 单实例 | `Services/SingleInstanceService.*` | Mutex + 激活已有窗口 |
 
 **Git 版本库：** 跟踪源码、脚本、`config/`、安装器脚本、开发指导等；忽略 `packages/`、`obj/`、`Generated Files/`、构建产物目录内容（保留 `.gitkeep`）。
 
@@ -481,22 +509,25 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 ## 七、实现状态与后续规划
 
-### 7.1 当前已实现（v1.0.0 build 0031）
+### 7.1 当前已实现（v1.0.1 build 0033）
 
-- WinUI 3 原生风格 UI、PerMonitorV2 缩放、1280×900 最小窗口；
+- WinUI 3 原生风格 UI、PerMonitorV2 缩放、1560×900 最小窗口、主功能区左/中/右三栏；
 - 灵敏度四件套（含单击灵敏度吸附方案）；
 - Curtain / SuperCurtain 开关与 mm 输入、HKLM 写入、重启提示；
 - BIOS 型号识别、CSV 匹配/应用/导出；
 - DPI 驱动的触控板示意图（Canvas 370px）与 SuperCurtain 重叠**两行**警告；
 - UAC 提权、Curtain 键补全、StartupWindow 启动态；
 - SPI 优先的 HKCU 读写、RegistryUserContext；
+- **外接 HID 自动启停触控板**（设备推送、F24 切换、延迟确认、监控名单 JSON）；
+- **系统托盘**、**开机自启**、**单实例**、HID 开启时强制托盘+自启；
 - 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；
 - 本地 Git 版本管理（`main` 主干）。
 
 ### 7.2 尚未实现（后续可规划）
 
 - 自动从 Windows 系统读取触控板物理尺寸；
-- 从远程源（如 GitHub）自动更新 `TouchpadPhysicalSize.csv`。
+- 从远程源（如 GitHub）自动更新 `TouchpadPhysicalSize.csv`；
+- 免 UAC 开机自启方案评估。
 
 ---
 

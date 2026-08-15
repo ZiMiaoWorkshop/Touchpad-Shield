@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Touchpad Shield">
 
-    <Grid MinWidth="1280" MinHeight="900" Padding="24,24,24,12" RowSpacing="16" ColumnSpacing="24">
+    <Grid MinWidth="1560" MinHeight="900" Padding="24,24,24,12" RowSpacing="16" ColumnSpacing="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -30,9 +30,11 @@
         </Grid>
 
         <Grid Grid.Row="1" ColumnSpacing="24">
+            <!-- Column ratio: 8:11:7 (≈ 40% : 55% : 35%) -->
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="4*" />
-                <ColumnDefinition Width="6*" />
+                <ColumnDefinition Width="8*" />
+                <ColumnDefinition Width="11*" />
+                <ColumnDefinition Width="7*" />
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0" RowSpacing="16">
@@ -258,7 +260,7 @@
 
                 <StackPanel Grid.Row="1" Spacing="8">
                     <TextBlock Text="触控板物理尺寸 (Touchpad Physical Size)" FontSize="20" FontWeight="SemiBold" />
-                    <Grid ColumnSpacing="12">
+                    <Grid ColumnSpacing="12" HorizontalAlignment="Stretch">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
@@ -282,8 +284,12 @@
 
                 <StackPanel Grid.Row="2" Spacing="8">
                     <TextBlock Text="触控板示意图 (Touchpad Diagram)" FontSize="20" FontWeight="SemiBold" />
-                    <Border BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="8">
-                        <Canvas x:Name="DiagramCanvas" Height="370" SizeChanged="DiagramCanvas_SizeChanged" />
+                    <Border BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8"
+                            HorizontalAlignment="Stretch">
+                        <Canvas x:Name="DiagramCanvas" Height="370" HorizontalAlignment="Stretch" SizeChanged="DiagramCanvas_SizeChanged" />
                     </Border>
                     <StackPanel Orientation="Horizontal" Spacing="16">
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -297,6 +303,114 @@
                     </StackPanel>
                     <TextBlock x:Name="DiagramWarningText" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" />
                 </StackPanel>
+            </Grid>
+
+            <Grid Grid.Column="2" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="触控板自动启停 (Touchpad Auto Toggle)"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+
+                <Grid Grid.Row="1" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="0" />
+                        <ColumnDefinition Width="76" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="启用触控板自动启停 (Enable Touchpad Auto Toggle)"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch x:Name="HidAutoTouchpadSwitch"
+                                  Grid.Column="1"
+                                  Style="{StaticResource RightAlignedToggleSwitchStyle}"
+                                  Toggled="HidAutoTouchpadSwitch_Toggled" />
+                </Grid>
+
+                <Grid Grid.Row="2" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="0" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="监控设备 (Monitored Devices)"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="HidRefreshButton"
+                            Grid.Column="1"
+                            Content="刷新"
+                            Click="HidRefreshButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="72"
+                            Padding="16,6" />
+                </Grid>
+
+                <StackPanel Grid.Row="3" Spacing="0">
+                    <ItemsControl x:Name="MonitoredHidListView"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0"
+                                  Padding="0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="0" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <ItemsControl x:Name="UnmonitoredHidListView"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0"
+                                  Padding="0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="0" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+
+                <Grid Grid.Row="5" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="0" />
+                        <ColumnDefinition Width="76" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="开机自启动 (Run at Startup)"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch x:Name="RunAtStartupSwitch"
+                                  Grid.Column="1"
+                                  Style="{StaticResource RightAlignedToggleSwitchStyle}"
+                                  Toggled="RunAtStartupSwitch_Toggled" />
+                </Grid>
+
+                <Grid Grid.Row="6" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="0" />
+                        <ColumnDefinition Width="76" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="常驻系统托盘 (Keep in System Tray)"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <ToggleSwitch x:Name="MinimizeToTraySwitch"
+                                  Grid.Column="1"
+                                  Style="{StaticResource RightAlignedToggleSwitchStyle}"
+                                  Toggled="MinimizeToTraySwitch_Toggled" />
+                </Grid>
+
+                <TextBlock x:Name="HidPolicyHintText"
+                           Grid.Row="7"
+                           TextWrapping="Wrap"
+                           Opacity="0.85"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}" />
             </Grid>
         </Grid>
 
