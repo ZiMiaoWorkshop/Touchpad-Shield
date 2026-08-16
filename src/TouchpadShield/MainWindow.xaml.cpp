@@ -97,6 +97,8 @@ namespace winrt::TouchpadShield::implementation
     MainWindow::MainWindow()
     {
         InitializeComponent();
+        RootLayoutGrid().MinWidth(AppServices::kDefaultLogicalClientWidth);
+        RootLayoutGrid().MinHeight(AppServices::kDefaultLogicalClientHeight);
         InitializeWindow();
         InitializeComboBoxes();
     }

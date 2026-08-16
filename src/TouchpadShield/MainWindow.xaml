@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Touchpad Shield">
 
-    <Grid MinWidth="1560" MinHeight="900" Padding="24,24,24,12" RowSpacing="16" ColumnSpacing="24">
+    <Grid x:Name="RootLayoutGrid" Padding="24,24,24,12" RowSpacing="16" ColumnSpacing="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />

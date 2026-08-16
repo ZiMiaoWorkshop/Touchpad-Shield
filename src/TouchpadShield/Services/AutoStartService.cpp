@@ -3,6 +3,7 @@
 #include "Services/AppRegistryPaths.h"
 
 #include <comdef.h>
+#include <memory>
 #include <taskschd.h>
 
 #pragma comment(lib, "taskschd.lib")
@@ -14,6 +15,105 @@ namespace TouchpadShield::Services
     {
         constexpr HRESULT kTaskNotFoundHresult = 0x8004130F;
         constexpr wchar_t kAutostartHandledSessionKey[] = L"AutostartHandledSessionId";
+
+        struct RegisteredLogonTaskInfo
+        {
+            bool taskExists{ false };
+            std::wstring exePath;
+            std::wstring arguments;
+            std::wstring principalUserId;
+            std::wstring logonTriggerUserId;
+        };
+
+        class TaskSchedulerConnection
+        {
+        public:
+            static std::unique_ptr<TaskSchedulerConnection> Open()
+            {
+                auto connection = std::make_unique<TaskSchedulerConnection>();
+                if (!connection->Connect())
+                {
+                    return nullptr;
+                }
+
+                return connection;
+            }
+
+            ~TaskSchedulerConnection()
+            {
+                Close();
+            }
+
+            ITaskService* Service() const
+            {
+                return m_service;
+            }
+
+            ITaskFolder* RootFolder() const
+            {
+                return m_rootFolder;
+            }
+
+        private:
+            bool Connect()
+            {
+                const HRESULT coinit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                m_needsUninit = SUCCEEDED(coinit) && coinit != S_FALSE && coinit != RPC_E_CHANGED_MODE;
+
+                HRESULT hr = CoCreateInstance(
+                    CLSID_TaskScheduler,
+                    nullptr,
+                    CLSCTX_INPROC_SERVER,
+                    IID_ITaskService,
+                    reinterpret_cast<void**>(&m_service));
+                if (FAILED(hr))
+                {
+                    Close();
+                    return false;
+                }
+
+                hr = m_service->Connect(_variant_t(), _variant_t(), _variant_t(), _variant_t());
+                if (FAILED(hr))
+                {
+                    Close();
+                    return false;
+                }
+
+                hr = m_service->GetFolder(_bstr_t(L"\\"), &m_rootFolder);
+                if (FAILED(hr))
+                {
+                    Close();
+                    return false;
+                }
+
+                return true;
+            }
+
+            void Close()
+            {
+                if (m_rootFolder)
+                {
+                    m_rootFolder->Release();
+                    m_rootFolder = nullptr;
+                }
+
+                if (m_service)
+                {
+                    m_service->Release();
+                    m_service = nullptr;
+                }
+
+                if (m_needsUninit)
+                {
+                    CoUninitialize();
+                    m_needsUninit = false;
+                }
+            }
+
+            bool m_needsUninit{ false };
+            ITaskService* m_service{ nullptr };
+            ITaskFolder* m_rootFolder{ nullptr };
+        };
 
         DWORD GetCurrentSessionId()
         {
@@ -134,6 +234,156 @@ namespace TouchpadShield::Services
             return userName;
         }
 
+        std::wstring ReadBstr(BSTR value)
+        {
+            return value ? std::wstring(value) : L"";
+        }
+
+        bool TryReadExecAction(IExecAction* execAction, RegisteredLogonTaskInfo& info)
+        {
+            if (!execAction)
+            {
+                return false;
+            }
+
+            BSTR path = nullptr;
+            BSTR arguments = nullptr;
+            if (SUCCEEDED(execAction->get_Path(&path)))
+            {
+                info.exePath = ReadBstr(path);
+                SysFreeString(path);
+            }
+
+            if (SUCCEEDED(execAction->get_Arguments(&arguments)))
+            {
+                info.arguments = ReadBstr(arguments);
+                SysFreeString(arguments);
+            }
+
+            return !info.exePath.empty();
+        }
+
+        bool TryReadLogonTriggerUserId(ITaskDefinition* taskDefinition, RegisteredLogonTaskInfo& info)
+        {
+            ITriggerCollection* triggerCollection = nullptr;
+            if (FAILED(taskDefinition->get_Triggers(&triggerCollection)) || !triggerCollection)
+            {
+                return false;
+            }
+
+            long triggerCount = 0;
+            triggerCollection->get_Count(&triggerCount);
+            for (long index = 1; index <= triggerCount; ++index)
+            {
+                ITrigger* trigger = nullptr;
+                if (FAILED(triggerCollection->get_Item(index, &trigger)) || !trigger)
+                {
+                    continue;
+                }
+
+                ILogonTrigger* logonTrigger = nullptr;
+                if (SUCCEEDED(trigger->QueryInterface(IID_ILogonTrigger, reinterpret_cast<void**>(&logonTrigger))) &&
+                    logonTrigger)
+                {
+                    BSTR userId = nullptr;
+                    if (SUCCEEDED(logonTrigger->get_UserId(&userId)))
+                    {
+                        info.logonTriggerUserId = ReadBstr(userId);
+                        SysFreeString(userId);
+                    }
+                    logonTrigger->Release();
+                    trigger->Release();
+                    triggerCollection->Release();
+                    return !info.logonTriggerUserId.empty();
+                }
+
+                trigger->Release();
+            }
+
+            triggerCollection->Release();
+            return false;
+        }
+
+        RegisteredLogonTaskInfo TryGetRegisteredLogonTaskInfo(ITaskFolder* rootFolder)
+        {
+            RegisteredLogonTaskInfo info{};
+            if (!rootFolder)
+            {
+                return info;
+            }
+
+            IRegisteredTask* registeredTask = nullptr;
+            HRESULT hr = rootFolder->GetTask(_bstr_t(AutoStartService::kScheduledTaskName), &registeredTask);
+            if (FAILED(hr) || !registeredTask)
+            {
+                return info;
+            }
+
+            info.taskExists = true;
+
+            ITaskDefinition* taskDefinition = nullptr;
+            hr = registeredTask->get_Definition(&taskDefinition);
+            if (FAILED(hr) || !taskDefinition)
+            {
+                registeredTask->Release();
+                return info;
+            }
+
+            IPrincipal* principal = nullptr;
+            if (SUCCEEDED(taskDefinition->get_Principal(&principal)) && principal)
+            {
+                BSTR userId = nullptr;
+                if (SUCCEEDED(principal->get_UserId(&userId)))
+                {
+                    info.principalUserId = ReadBstr(userId);
+                    SysFreeString(userId);
+                }
+                principal->Release();
+            }
+
+            IActionCollection* actionCollection = nullptr;
+            IAction* action = nullptr;
+            IExecAction* execAction = nullptr;
+            if (SUCCEEDED(taskDefinition->get_Actions(&actionCollection)) &&
+                SUCCEEDED(actionCollection->get_Item(1, &action)) &&
+                SUCCEEDED(action->QueryInterface(IID_IExecAction, reinterpret_cast<void**>(&execAction))))
+            {
+                TryReadExecAction(execAction, info);
+                execAction->Release();
+            }
+
+            if (action)
+            {
+                action->Release();
+            }
+            if (actionCollection)
+            {
+                actionCollection->Release();
+            }
+
+            TryReadLogonTriggerUserId(taskDefinition, info);
+
+            taskDefinition->Release();
+            registeredTask->Release();
+            return info;
+        }
+
+        bool IsRegisteredLogonTaskValid(
+            RegisteredLogonTaskInfo const& info,
+            std::wstring const& expectedExePath,
+            std::wstring const& expectedUserSam)
+        {
+            if (!info.taskExists)
+            {
+                return false;
+            }
+
+            return _wcsicmp(info.exePath.c_str(), expectedExePath.c_str()) == 0 &&
+                _wcsicmp(info.arguments.c_str(), AutoStartService::kStartupArgument) == 0 &&
+                _wcsicmp(info.principalUserId.c_str(), expectedUserSam.c_str()) == 0 &&
+                _wcsicmp(info.logonTriggerUserId.c_str(), expectedUserSam.c_str()) == 0;
+        }
+
         bool RunSchTasksDelete(DWORD* exitCodeOut = nullptr)
         {
             std::wstring commandLine =
@@ -183,164 +433,14 @@ namespace TouchpadShield::Services
 
         bool DeleteLogonTaskViaCom()
         {
-            const HRESULT coinit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-            const bool needsUninit = SUCCEEDED(coinit) && coinit != S_FALSE && coinit != RPC_E_CHANGED_MODE;
-
-            ITaskService* service = nullptr;
-            ITaskFolder* rootFolder = nullptr;
-            HRESULT hr = CoCreateInstance(
-                CLSID_TaskScheduler,
-                nullptr,
-                CLSCTX_INPROC_SERVER,
-                IID_ITaskService,
-                reinterpret_cast<void**>(&service));
-
-            if (FAILED(hr))
+            const auto connection = TaskSchedulerConnection::Open();
+            if (!connection)
             {
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
                 return false;
             }
 
-            hr = service->Connect(_variant_t(), _variant_t(), _variant_t(), _variant_t());
-            if (FAILED(hr))
-            {
-                service->Release();
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return false;
-            }
-
-            hr = service->GetFolder(_bstr_t(L"\\"), &rootFolder);
-            if (FAILED(hr))
-            {
-                service->Release();
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return false;
-            }
-
-            hr = rootFolder->DeleteTask(_bstr_t(AutoStartService::kScheduledTaskName), 0);
-            rootFolder->Release();
-            service->Release();
-
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
-
+            const HRESULT hr = connection->RootFolder()->DeleteTask(_bstr_t(AutoStartService::kScheduledTaskName), 0);
             return SUCCEEDED(hr) || hr == kTaskNotFoundHresult;
-        }
-
-        std::wstring TryGetRegisteredTaskExePath()
-        {
-            const HRESULT coinit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-            const bool needsUninit = SUCCEEDED(coinit) && coinit != S_FALSE && coinit != RPC_E_CHANGED_MODE;
-
-            ITaskService* service = nullptr;
-            ITaskFolder* rootFolder = nullptr;
-            IRegisteredTask* registeredTask = nullptr;
-            ITaskDefinition* taskDefinition = nullptr;
-            IActionCollection* actionCollection = nullptr;
-            IAction* action = nullptr;
-            IExecAction* execAction = nullptr;
-            std::wstring exePath;
-
-            HRESULT hr = CoCreateInstance(
-                CLSID_TaskScheduler,
-                nullptr,
-                CLSCTX_INPROC_SERVER,
-                IID_ITaskService,
-                reinterpret_cast<void**>(&service));
-            if (FAILED(hr))
-            {
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return L"";
-            }
-
-            hr = service->Connect(_variant_t(), _variant_t(), _variant_t(), _variant_t());
-            if (FAILED(hr))
-            {
-                service->Release();
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return L"";
-            }
-
-            hr = service->GetFolder(_bstr_t(L"\\"), &rootFolder);
-            if (FAILED(hr))
-            {
-                service->Release();
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return L"";
-            }
-
-            hr = rootFolder->GetTask(_bstr_t(AutoStartService::kScheduledTaskName), &registeredTask);
-            if (FAILED(hr) || !registeredTask)
-            {
-                rootFolder->Release();
-                service->Release();
-                if (needsUninit)
-                {
-                    CoUninitialize();
-                }
-                return L"";
-            }
-
-            hr = registeredTask->get_Definition(&taskDefinition);
-            if (SUCCEEDED(hr) && taskDefinition &&
-                SUCCEEDED(taskDefinition->get_Actions(&actionCollection)) &&
-                SUCCEEDED(actionCollection->get_Item(1, &action)) &&
-                SUCCEEDED(action->QueryInterface(IID_IExecAction, reinterpret_cast<void**>(&execAction))))
-            {
-                BSTR path = nullptr;
-                if (SUCCEEDED(execAction->get_Path(&path)) && path)
-                {
-                    exePath = path;
-                    SysFreeString(path);
-                }
-                execAction->Release();
-            }
-
-            if (action)
-            {
-                action->Release();
-            }
-            if (actionCollection)
-            {
-                actionCollection->Release();
-            }
-            if (taskDefinition)
-            {
-                taskDefinition->Release();
-            }
-            if (registeredTask)
-            {
-                registeredTask->Release();
-            }
-            rootFolder->Release();
-            service->Release();
-
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
-
-            return exePath;
         }
     }
 
@@ -430,64 +530,19 @@ namespace TouchpadShield::Services
             return false;
         }
 
-        const HRESULT coinit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        const bool needsUninit = SUCCEEDED(coinit) && coinit != S_FALSE && coinit != RPC_E_CHANGED_MODE;
+        const auto connection = TaskSchedulerConnection::Open();
+        if (!connection)
+        {
+            Logger::Warning(L"AutoStart: TaskScheduler connection failed");
+            return false;
+        }
 
-        ITaskService* service = nullptr;
-        ITaskFolder* rootFolder = nullptr;
         ITaskDefinition* task = nullptr;
         IRegisteredTask* registeredTask = nullptr;
-        HRESULT hr = CoCreateInstance(
-            CLSID_TaskScheduler,
-            nullptr,
-            CLSCTX_INPROC_SERVER,
-            IID_ITaskService,
-            reinterpret_cast<void**>(&service));
-
-        if (FAILED(hr))
-        {
-            Logger::Warning(L"AutoStart: TaskScheduler CoCreateInstance failed");
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
-            return false;
-        }
-
-        hr = service->Connect(_variant_t(), _variant_t(), _variant_t(), _variant_t());
-        if (FAILED(hr))
-        {
-            Logger::Warning(L"AutoStart: TaskScheduler Connect failed");
-            service->Release();
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
-            return false;
-        }
-
-        hr = service->GetFolder(_bstr_t(L"\\"), &rootFolder);
-        if (FAILED(hr))
-        {
-            Logger::Warning(L"AutoStart: TaskScheduler GetFolder failed");
-            service->Release();
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
-            return false;
-        }
-
-        hr = service->NewTask(0, &task);
+        HRESULT hr = connection->Service()->NewTask(0, &task);
         if (FAILED(hr))
         {
             Logger::Warning(L"AutoStart: TaskScheduler NewTask failed");
-            rootFolder->Release();
-            service->Release();
-            if (needsUninit)
-            {
-                CoUninitialize();
-            }
             return false;
         }
 
@@ -559,7 +614,7 @@ namespace TouchpadShield::Services
             actionCollection->Release();
         }
 
-        hr = rootFolder->RegisterTaskDefinition(
+        hr = connection->RootFolder()->RegisterTaskDefinition(
             _bstr_t(kScheduledTaskName),
             task,
             TASK_CREATE_OR_UPDATE,
@@ -574,13 +629,6 @@ namespace TouchpadShield::Services
             registeredTask->Release();
         }
         task->Release();
-        rootFolder->Release();
-        service->Release();
-
-        if (needsUninit)
-        {
-            CoUninitialize();
-        }
 
         if (FAILED(hr))
         {
@@ -595,16 +643,22 @@ namespace TouchpadShield::Services
     bool AutoStartService::EnsureLogonTaskRegistered() const
     {
         const std::wstring exePath = ResolveExecutablePathUnquoted();
-        if (exePath.empty())
+        const std::wstring userSam = GetCurrentUserSamName();
+        if (exePath.empty() || userSam.empty())
         {
             return false;
         }
 
-        const std::wstring registeredPath = TryGetRegisteredTaskExePath();
-        if (_wcsicmp(registeredPath.c_str(), exePath.c_str()) == 0)
+        const auto connection = TaskSchedulerConnection::Open();
+        if (connection)
         {
-            RemoveRunKey();
-            return true;
+            const RegisteredLogonTaskInfo registeredTask =
+                TryGetRegisteredLogonTaskInfo(connection->RootFolder());
+            if (IsRegisteredLogonTaskValid(registeredTask, exePath, userSam))
+            {
+                RemoveRunKey();
+                return true;
+            }
         }
 
         return SetEnabled(true);

@@ -132,6 +132,8 @@
     <ClInclude Include="App.xaml.h" />
     <ClInclude Include="MainWindow.xaml.h" />
     <ClInclude Include="StartupWindow.xaml.h" />
+    <ClInclude Include="Services\AppRegistryPaths.h" />
+    <ClInclude Include="Services\StringUtils.h" />
     <ClInclude Include="Services\WindowIconHelper.h" />
     <ClInclude Include="Services\WindowBoundsHelper.h" />
     <ClInclude Include="Services\Logger.h" />
