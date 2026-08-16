@@ -1,0 +1,8 @@
+flowchart TD
+    A[用户关闭「启用自动启停」] --> B[Save InputAutoTouchpadEnabled=false]
+    B --> C[解锁自启动 / 常驻托盘 Toggle]
+    C --> D["StartInputMonitoring（SetEnabled=false，Watcher 仍注册）"]
+    D --> E["RequestEnabledAsync(true)"]
+    E --> F{Status Enabled==0?}
+    F -->|是| G[走 F24 切换确认流程开启触控板]
+    F -->|否| H[已是启用状态 跳过]

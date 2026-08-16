@@ -32,6 +32,5 @@ namespace TouchpadShield::Services
         static std::wstring EscapeCsvField(std::wstring const& value);
         static std::wstring FormatCsvRow(TouchpadPhysicalSizeEntry const& entry);
         static std::vector<std::wstring> SplitCsvLine(std::wstring const& line);
-        static std::wstring Trim(std::wstring value);
     };
 }

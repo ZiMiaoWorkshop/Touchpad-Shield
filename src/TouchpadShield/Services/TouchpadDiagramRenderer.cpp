@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "Services/TouchpadDiagramRenderer.h"
 
+#include <winrt/Microsoft.UI.Xaml.Media.h>
+#include <winrt/Microsoft.UI.Xaml.Shapes.h>
+
 using namespace winrt;
 using namespace Microsoft::UI::Xaml;
 using namespace Microsoft::UI::Xaml::Controls;

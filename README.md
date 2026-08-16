@@ -4,7 +4,7 @@
 
 Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 
-**Current version:** 1.0.1 build 0033 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**Current version:** 1.1.0 build 0081 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
 
 ---
 
@@ -31,12 +31,12 @@ Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 - **Laptop-aware sizing** — BIOS identity matching via `TouchpadPhysicalSize.csv`; apply presets or export your own
 - **Instant vs reboot** — HKCU settings apply immediately via `SystemParametersInfo`; HKLM Curtain changes require reboot
 - **Native Windows UI** — WinUI 3, system theme, PerMonitorV2 DPI, bilingual labels (Chinese / English)
-- **External HID auto toggle** — monitor selected HID devices (VID/PID); disable built-in touchpad when any is connected, re-enable when all are removed (`Status\Enabled` via `Ctrl+Win+F24`)
-- **System tray & startup** — optional minimize-to-tray on close and Run-at-logon; forced on when HID monitoring is enabled
+- **External input auto toggle** — monitor selected input device containers (same source as Windows Settings → Bluetooth & devices → Devices → Input); disable built-in touchpad when any monitored device is connected, re-enable when all are offline (`Status\Enabled` via `Ctrl+Win+F24`)
+- **System tray & startup** — optional minimize-to-tray on close and Run-at-logon; forced on when input device monitoring is enabled
 
 ---
 
-## External HID & touchpad toggle (v1.0.1)
+## External input devices & touchpad toggle (v1.1.0)
 
 This is **separate** from PTP tuning keys above. It toggles the Windows touchpad master switch:
 
@@ -44,11 +44,26 @@ This is **separate** from PTP tuning keys above. It toggles the Windows touchpad
 |------|--------|
 | Registry read | `HKCU\...\PrecisionTouchPad\Status\Enabled` |
 | Toggle method | `SendInput`: `Ctrl+Win+F24` (system toggle key) |
-| Device detection | `WM_DEVICECHANGE` + `RegisterDeviceNotification` (not polling) |
-| Monitored devices | User-selected HID list (VID/PID); built-in touchpad excluded from picker |
-| Persistence | `Software\ZiMiaoWorkshop\TouchpadShield` |
+| Device detection | `PnpObjectWatcher` on `DeviceContainer` (not polling) |
+| Device list | All input-category containers (paired or connected); built-in touchpad excluded |
+| Match key | Device Container ID (`ContainerId`) |
+| Persistence | `Software\ZiMiaoWorkshop\TouchpadShield` — see keys below |
 
-When HID monitoring is on, **Run at startup** and **Minimize to tray on close** are forced enabled so background plug/unplug handling keeps working.
+When input device monitoring is on, **Run at startup** and **Minimize to tray on close** are forced enabled so background connect/disconnect handling keeps working.
+
+**Registry keys (per Windows user, HKCU):**
+
+| Key | Purpose |
+|-----|---------|
+| `InputAutoTouchpadEnabled` | Touchpad auto toggle on/off |
+| `MonitoredInputDevices` | JSON: `containerId`, `label`, optional `matchKey` |
+| `RunAtStartup` | Run at logon (scheduled task) |
+| `MinimizeToTrayOnClose` | Minimize to tray when closing window |
+| `AutostartHandledSessionId` | DWORD — session ID where `--startup` already ran (internal) |
+
+**Run at logon:** Task Scheduler `\TouchpadShield`, logon trigger bound to the current user, `RunLevel=Highest`, `"<exe>" --startup`. Legacy HKCU Run entries are removed. Each Windows user has independent settings and task registration. After a successful `--startup`, the app records the current session ID so duplicate `--startup` in the same session is ignored (switching back to an already-logged-in user does not log in again, so the task normally does not re-fire).
+
+**PnP watcher (intentional):** While the app process is running, `PnpObjectWatcher` stays registered even when **Enable auto toggle** is off. Only reconcile / F24 toggling is gated by `InputAutoTouchpadEnabled`; device plug/unplug still refreshes the device lists so you can edit the monitored list anytime. Disabling auto toggle also sends F24 to re-enable the touchpad if it was left off.
 
 ---
 
@@ -130,7 +145,7 @@ On every build, MSBuild and `build-debug.ps1` sync this file to `{output}/config
 └─────────────────────────────────────┘
 ```
 
-See [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) for module-level details (Chinese).
+See [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) for module-level details (Chinese), including **§6.1 Code maintenance conventions** (intentional non-refactors and completed cleanups).
 
 ---
 
@@ -165,8 +180,10 @@ Doc-only changes (e.g. README) do **not** increment the build number.
 
 | Document | Description |
 |----------|-------------|
-| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | Developer guide — UI spec, architecture, build rules |
+| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | Developer guide — UI spec, architecture, build rules, **§6.1 maintenance conventions** |
+| [`PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md) | **v1.0.0 → v1.1.0** feature and UI changelog |
 | [`.cursor/rules/touchpad-shield-build.mdc`](.cursor/rules/touchpad-shield-build.mdc) | Build policy for automated tooling |
+| [`.cursor/rules/touchpad-shield-code.mdc`](.cursor/rules/touchpad-shield-code.mdc) | Code maintenance — refactors not to re-propose |
 
 ---
 

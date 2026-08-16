@@ -4,17 +4,20 @@
 
 namespace TouchpadShield::Services
 {
+    inline constexpr int kDefaultLogicalClientWidth = 1560;
+    inline constexpr int kDefaultLogicalClientHeight = 900;
+
     struct WindowBoundsSpec
     {
-        int logicalClientWidth{ 1560 };
-        int logicalClientHeight{ 900 };
+        int logicalClientWidth{ kDefaultLogicalClientWidth };
+        int logicalClientHeight{ kDefaultLogicalClientHeight };
     };
-
     class WindowBoundsHelper
     {
     public:
         void Apply(HWND hwnd, WindowBoundsSpec const& spec);
         void ResizeClientToLogicalSize(HWND hwnd) const;
+        static void CenterOnWorkArea(HWND hwnd);
 
     private:
         WindowBoundsSpec m_spec{};

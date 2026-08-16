@@ -8,13 +8,13 @@
 
     <TouchpadShieldMajorVersion>1</TouchpadShieldMajorVersion>
 
-    <TouchpadShieldMinorVersion>0</TouchpadShieldMinorVersion>
+    <TouchpadShieldMinorVersion>1</TouchpadShieldMinorVersion>
 
-    <TouchpadShieldPatchVersion>1</TouchpadShieldPatchVersion>
+    <TouchpadShieldPatchVersion>0</TouchpadShieldPatchVersion>
 
     <!-- 构建号（源码变动时递增，4 位数字） -->
 
-    <TouchpadShieldBuildNumber>0054</TouchpadShieldBuildNumber>
+    <TouchpadShieldBuildNumber>0097</TouchpadShieldBuildNumber>
 
   </PropertyGroup>
 

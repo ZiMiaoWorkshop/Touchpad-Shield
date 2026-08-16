@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant User as 用户连接或断开输入设备
+    participant PnP as Windows_PnP
+    participant Watcher as PnpObjectWatcher
+    participant Mon as InputDeviceMonitorService
+    participant Main as MainWindow
+    participant Enum as InputDeviceEnumerationService
+    participant Toggle as TouchpadToggleService
+
+    User->>PnP: Device Container 状态变更
+    PnP->>Watcher: Added / Updated / Removed
+    Watcher->>Mon: 设备变更回调
+    Mon->>Main: ScheduleInputDeviceRefresh
+    Main->>Enum: FindAll DeviceContainer 过滤 Input 类别
+    Enum-->>Main: 设备列表含 Connected 状态
+    alt 自动启停已开启
+        Main->>Mon: ReconcileNow
+        Mon->>Enum: CountMonitoredOnline by ContainerId
+        alt onlineCount>=1 且 Enabled==1
+            Mon->>Toggle: RequestEnabledAsync false
+        else onlineCount==0 且 Enabled==0
+            Mon->>Toggle: RequestEnabledAsync true
+        end
+        Toggle->>Toggle: SendInput F24 延迟确认 必要时补偿
+    else 自动启停未开启
+        Main->>Main: 仅刷新 UI 列表
+    end

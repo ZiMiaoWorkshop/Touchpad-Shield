@@ -58,14 +58,14 @@ namespace TouchpadShield::Services
         WriteStringValue(name, value ? L"1" : L"0");
     }
 
-    bool LocalSettingsService::LoadHidAutoTouchpadEnabled() const
+    bool LocalSettingsService::LoadInputAutoTouchpadEnabled() const
     {
-        return LoadBoolSetting(L"HidAutoTouchpadEnabled", false);
+        return LoadBoolSetting(kInputAutoTouchpadEnabledKey, false);
     }
 
-    void LocalSettingsService::SaveHidAutoTouchpadEnabled(bool enabled) const
+    void LocalSettingsService::SaveInputAutoTouchpadEnabled(bool enabled) const
     {
-        SaveBoolSetting(L"HidAutoTouchpadEnabled", enabled);
+        SaveBoolSetting(kInputAutoTouchpadEnabledKey, enabled);
     }
 
     bool LocalSettingsService::LoadRunAtStartup() const
@@ -88,22 +88,23 @@ namespace TouchpadShield::Services
         SaveBoolSetting(L"MinimizeToTrayOnClose", enabled);
     }
 
-    std::vector<MonitoredHidDevice> LocalSettingsService::LoadMonitoredHidDevices() const
+    std::vector<MonitoredInputDevice> LocalSettingsService::LoadMonitoredInputDevices() const
     {
-        const auto json = ReadStringValue(L"MonitoredHidDevices");
+        const auto json = ReadStringValue(kMonitoredInputDevicesKey);
         if (!json.has_value() || json->empty())
         {
             return {};
         }
+
         return DeserializeMonitoredDevices(json.value());
     }
 
-    void LocalSettingsService::SaveMonitoredHidDevices(std::vector<MonitoredHidDevice> const& devices) const
+    void LocalSettingsService::SaveMonitoredInputDevices(std::vector<MonitoredInputDevice> const& devices) const
     {
-        WriteStringValue(L"MonitoredHidDevices", SerializeMonitoredDevices(devices));
+        WriteStringValue(kMonitoredInputDevicesKey, SerializeMonitoredDevices(devices));
     }
 
-    std::wstring LocalSettingsService::SerializeMonitoredDevices(std::vector<MonitoredHidDevice> const& devices)
+    std::wstring LocalSettingsService::SerializeMonitoredDevices(std::vector<MonitoredInputDevice> const& devices)
     {
         std::wstring json = L"[";
         for (size_t i = 0; i < devices.size(); ++i)
@@ -128,9 +129,13 @@ namespace TouchpadShield::Services
                 return escaped;
             };
 
-            json += L"{\"vid\":\"" + escape(devices[i].vid) +
-                L"\",\"pid\":\"" + escape(devices[i].pid) +
-                L"\",\"label\":\"" + escape(devices[i].label) + L"\"}";
+            json += L"{\"containerId\":\"" + escape(ContainerIdToString(devices[i].containerId)) +
+                L"\",\"label\":\"" + escape(devices[i].label) + L"\"";
+            if (!devices[i].matchKey.empty())
+            {
+                json += L",\"matchKey\":\"" + escape(devices[i].matchKey) + L"\"";
+            }
+            json += L"}";
         }
         json += L"]";
         return json;
@@ -169,9 +174,9 @@ namespace TouchpadShield::Services
         return value;
     }
 
-    std::vector<MonitoredHidDevice> LocalSettingsService::DeserializeMonitoredDevices(std::wstring const& json)
+    std::vector<MonitoredInputDevice> LocalSettingsService::DeserializeMonitoredDevices(std::wstring const& json)
     {
-        std::vector<MonitoredHidDevice> devices;
+        std::vector<MonitoredInputDevice> devices;
         size_t pos = 0;
         while (pos < json.size())
         {
@@ -182,11 +187,11 @@ namespace TouchpadShield::Services
             }
 
             pos = objectStart + 1;
-            MonitoredHidDevice device{};
-            device.vid = ExtractJsonString(json, L"vid", pos);
-            device.pid = ExtractJsonString(json, L"pid", pos);
+            MonitoredInputDevice device{};
+            const std::wstring containerIdText = ExtractJsonString(json, L"containerId", pos);
             device.label = ExtractJsonString(json, L"label", pos);
-            if (!device.vid.empty() && !device.pid.empty())
+            device.matchKey = ExtractJsonString(json, L"matchKey", pos);
+            if (!containerIdText.empty() && TryParseContainerId(containerIdText, device.containerId))
             {
                 devices.push_back(std::move(device));
             }

@@ -8,6 +8,8 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
+            <x:Double x:Key="ToggleSwitchRowHeight">32</x:Double>
+
             <Style x:Key="MmNumberBoxFieldStyle" TargetType="NumberBox">
                 <Setter Property="SpinButtonPlacementMode" Value="Hidden" />
                 <Setter Property="Padding" Value="12,8,58,8" />
@@ -25,6 +27,7 @@
 
             <Style x:Key="RightAlignedToggleSwitchStyle" TargetType="ToggleSwitch">
                 <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="{StaticResource ToggleSwitchRowHeight}" />
                 <Setter Property="HorizontalAlignment" Value="Right" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>

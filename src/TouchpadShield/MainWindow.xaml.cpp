@@ -1,9 +1,8 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
+#include "Services/TouchpadToggleService.h"
 #include "Services/UnitConversion.h"
 #include "Services/WindowIconHelper.h"
-
-#include <chrono>
 
 #include <microsoft.ui.xaml.window.h>
 #include <winrt/Microsoft.UI.Interop.h>
@@ -12,6 +11,7 @@
 using namespace winrt;
 using namespace Microsoft::UI::Xaml;
 using namespace Microsoft::UI::Xaml::Controls;
+using namespace Microsoft::UI::Dispatching;
 using namespace Microsoft::UI::Windowing;
 namespace AppServices = ::TouchpadShield::Services;
 
@@ -19,23 +19,8 @@ namespace winrt::TouchpadShield::implementation
 {
     namespace
     {
-        constexpr int kMinWindowWidth = 1560;
-        constexpr int kMinWindowHeight = 900;
-        constexpr double kOfflineHidDeviceLabelOpacity = 0.55;
-        constexpr double kHidDeviceRowIndent = 16.0;
-
-        bool IsMonitoredDeviceOnline(
-            AppServices::MonitoredHidDevice const& monitored,
-            std::vector<AppServices::HidDeviceInfo> const& onlineDevices)
-        {
-            return std::any_of(
-                onlineDevices.begin(),
-                onlineDevices.end(),
-                [&](AppServices::HidDeviceInfo const& online)
-                {
-                    return AppServices::HidDevicesMatch(monitored, online);
-                });
-        }
+        constexpr double kOfflineInputDeviceLabelOpacity = 0.55;
+        constexpr double kInputDeviceRowIndent = 16.0;
 
         std::wstring BuildVersionText()
         {
@@ -45,20 +30,19 @@ namespace winrt::TouchpadShield::implementation
             return std::wstring(L"v") + TOUCHPAD_SHIELD_VERSION;
         }
 
+        AppServices::MonitoredInputDevice ToMonitoredDevice(AppServices::InputDeviceInfo const& device)
+        {
+            AppServices::MonitoredInputDevice entry{};
+            entry.containerId = device.containerId;
+            entry.label = device.label;
+            entry.matchKey = device.matchKey;
+            return entry;
+        }
+
         double NumberBoxValueOrZero(NumberBox const& box)
         {
             const double value = box.Value();
             return std::isnan(value) ? 0.0 : value;
-        }
-
-        std::wstring StripVidPidSuffix(std::wstring label)
-        {
-            const auto suffixPos = label.rfind(L" (VID_");
-            if (suffixPos != std::wstring::npos)
-            {
-                return label.substr(0, suffixPos);
-            }
-            return label;
         }
 
         void EnsureCurtainNumberBoxZero(NumberBox const& sender, bool& isLoading)
@@ -70,6 +54,43 @@ namespace winrt::TouchpadShield::implementation
                 box.Value(0.0);
                 isLoading = false;
             }
+        }
+
+        Grid BuildInputDeviceListRow(
+            std::wstring const& labelText,
+            bool dimLabel,
+            std::wstring const& buttonLabel,
+            RoutedEventHandler const& onClick)
+        {
+            Grid row{};
+            row.ColumnSpacing(8);
+            row.Padding({ kInputDeviceRowIndent, 4, 0, 4 });
+
+            ColumnDefinition labelColumn{};
+            ColumnDefinition buttonColumn{};
+            buttonColumn.Width(GridLengthHelper::Auto());
+            row.ColumnDefinitions().Append(labelColumn);
+            row.ColumnDefinitions().Append(buttonColumn);
+
+            TextBlock label{};
+            label.Text(labelText);
+            label.TextWrapping(TextWrapping::WrapWholeWords);
+            label.VerticalAlignment(VerticalAlignment::Center);
+            if (dimLabel)
+            {
+                label.Opacity(kOfflineInputDeviceLabelOpacity);
+            }
+            Grid::SetColumn(label, 0);
+
+            Button actionButton{};
+            actionButton.Content(box_value(buttonLabel));
+            actionButton.VerticalAlignment(VerticalAlignment::Center);
+            Grid::SetColumn(actionButton, 1);
+            actionButton.Click(onClick);
+
+            row.Children().Append(label);
+            row.Children().Append(actionButton);
+            return row;
         }
     }
 
@@ -83,8 +104,8 @@ namespace winrt::TouchpadShield::implementation
     winrt::Windows::Foundation::IAsyncAction MainWindow::InitializeAsync()
     {
         LoadAllData();
-        LoadHidSettingsUi();
-        co_await winrt::resume_after(std::chrono::milliseconds(0));
+        LoadInputDeviceSettingsUi();
+        co_await RefreshAvailableInputDevicesAsync();
     }
 
     void MainWindow::InitializeWindow()
@@ -97,12 +118,42 @@ namespace winrt::TouchpadShield::implementation
 
         Activated([this](IInspectable const&, IInspectable const&)
         {
+            if (m_silentStartup)
+            {
+                if (HWND hwnd = GetWindowHandle())
+                {
+                    ShowWindow(hwnd, SW_HIDE);
+                }
+
+                try
+                {
+                    AppWindow().Hide();
+                }
+                catch (...)
+                {
+                }
+            }
+
             ApplyWindowIcon();
             if (!m_initialWindowSizeApplied)
             {
                 CompletePlatformSetup();
             }
         });
+    }
+
+    void MainWindow::PrepareSilentStartup()
+    {
+        m_silentStartup = true;
+        m_deferInitialWindowSize = true;
+
+        try
+        {
+            AppWindow().Hide();
+        }
+        catch (...)
+        {
+        }
     }
 
     void MainWindow::CompletePlatformSetup()
@@ -112,9 +163,14 @@ namespace winrt::TouchpadShield::implementation
             return;
         }
 
-        ApplyInitialWindowSize();
+        if (!m_deferInitialWindowSize)
+        {
+            ApplyInitialWindowSize();
+        }
+
         SetupWindowCloseBehavior();
-        StartHidMonitoring();
+        m_dispatcherQueue = DispatcherQueue::GetForCurrentThread();
+        StartInputMonitoring();
         UpdateTrayIconState();
         m_autoStart.SetEnabled(m_localSettings.LoadRunAtStartup());
         m_initialWindowSizeApplied = true;
@@ -122,8 +178,23 @@ namespace winrt::TouchpadShield::implementation
 
     void MainWindow::LaunchToTrayOnly()
     {
-        Activate();
-        CompletePlatformSetup();
+        if (HWND hwnd = GetWindowHandle())
+        {
+            ShowWindow(hwnd, SW_HIDE);
+        }
+
+        try
+        {
+            AppWindow().Hide();
+        }
+        catch (...)
+        {
+        }
+
+        if (!m_initialWindowSizeApplied)
+        {
+            CompletePlatformSetup();
+        }
 
         const HWND hwnd = GetWindowHandle();
         if (hwnd && !m_trayIcon.IsCreated())
@@ -136,33 +207,23 @@ namespace winrt::TouchpadShield::implementation
 
     void MainWindow::ApplyInitialWindowSize()
     {
-        HWND hwnd = nullptr;
-        if (auto windowNative = try_as<IWindowNative>())
-        {
-            windowNative->get_WindowHandle(&hwnd);
-        }
-
+        const HWND hwnd = GetWindowHandle();
         if (!hwnd)
         {
             return;
         }
 
         AppServices::WindowBoundsSpec bounds{
-            kMinWindowWidth,
-            kMinWindowHeight };
+            AppServices::kDefaultLogicalClientWidth,
+            AppServices::kDefaultLogicalClientHeight };
         m_windowBounds.Apply(hwnd, bounds);
         m_windowBounds.ResizeClientToLogicalSize(hwnd);
+        AppServices::WindowBoundsHelper::CenterOnWorkArea(hwnd);
     }
 
     void MainWindow::ApplyWindowIcon()
     {
-        HWND hwnd = nullptr;
-        if (auto windowNative = try_as<IWindowNative>())
-        {
-            windowNative->get_WindowHandle(&hwnd);
-        }
-
-        AppServices::WindowIconHelper::Apply(hwnd);
+        AppServices::WindowIconHelper::Apply(GetWindowHandle());
     }
 
     void MainWindow::InitializeComboBoxes()
@@ -796,18 +857,65 @@ namespace winrt::TouchpadShield::implementation
                     return;
                 }
 
-                if (ShouldMinimizeToTrayOnClose())
+                if (RequiresTrayIcon())
                 {
                     args.Cancel(true);
                     HideToTray();
                 }
             });
         }
+
+        Closed([this](IInspectable const&, WindowEventArgs const&)
+        {
+            StopInputMonitoring();
+            m_trayIcon.Destroy();
+            Application::Current().Exit();
+        });
     }
 
-    bool MainWindow::ShouldMinimizeToTrayOnClose() const
+    bool MainWindow::IsInputAutoTouchpadEnabled() const
     {
-        return m_localSettings.LoadMinimizeToTrayOnClose() || m_localSettings.LoadHidAutoTouchpadEnabled();
+        return m_localSettings.LoadInputAutoTouchpadEnabled();
+    }
+
+    bool MainWindow::RequiresTrayIcon() const
+    {
+        return m_localSettings.LoadMinimizeToTrayOnClose() ||
+            IsInputAutoTouchpadEnabled() ||
+            m_localSettings.LoadRunAtStartup();
+    }
+
+    void MainWindow::EnforceRunAtStartupDependencies()
+    {
+        m_inputDeviceSettingsLoading = true;
+
+        if (!MinimizeToTraySwitch().IsOn())
+        {
+            MinimizeToTraySwitch().IsOn(true);
+            m_localSettings.SaveMinimizeToTrayOnClose(true);
+        }
+
+        m_inputDeviceSettingsLoading = false;
+    }
+
+    void MainWindow::EnforceAutoToggleDependencies()
+    {
+        m_inputDeviceSettingsLoading = true;
+
+        if (!RunAtStartupSwitch().IsOn())
+        {
+            RunAtStartupSwitch().IsOn(true);
+            m_localSettings.SaveRunAtStartup(true);
+            m_autoStart.SetEnabled(true);
+        }
+
+        if (!MinimizeToTraySwitch().IsOn())
+        {
+            MinimizeToTraySwitch().IsOn(true);
+            m_localSettings.SaveMinimizeToTrayOnClose(true);
+        }
+
+        m_inputDeviceSettingsLoading = false;
     }
 
     void MainWindow::HideToTray()
@@ -821,6 +929,12 @@ namespace winrt::TouchpadShield::implementation
 
     void MainWindow::ShowFromTray()
     {
+        if (m_deferInitialWindowSize)
+        {
+            ApplyInitialWindowSize();
+            m_deferInitialWindowSize = false;
+        }
+
         Activate();
         if (const HWND hwnd = GetWindowHandle())
         {
@@ -832,16 +946,12 @@ namespace winrt::TouchpadShield::implementation
     void MainWindow::RequestExit()
     {
         m_forceExit = true;
-        StopHidMonitoring();
-        m_trayIcon.Destroy();
         Close();
-        Application::Current().Exit();
     }
 
     void MainWindow::UpdateTrayIconState()
     {
-        const bool shouldCreate =
-            m_localSettings.LoadMinimizeToTrayOnClose() || m_localSettings.LoadHidAutoTouchpadEnabled();
+        const bool shouldCreate = RequiresTrayIcon();
         const HWND hwnd = GetWindowHandle();
         if (!hwnd)
         {
@@ -861,291 +971,321 @@ namespace winrt::TouchpadShield::implementation
         }
     }
 
-    void MainWindow::ApplyHidPolicyLocks()
+    void MainWindow::ApplyInputAutoTouchpadPolicyLocks()
     {
-        const bool hidEnabled = HidAutoTouchpadSwitch().IsOn();
-        RunAtStartupSwitch().IsEnabled(!hidEnabled);
-        MinimizeToTraySwitch().IsEnabled(!hidEnabled);
+        const bool autoToggleEnabled = InputAutoTouchpadSwitch().IsOn();
+        const bool runAtStartupEnabled = RunAtStartupSwitch().IsOn();
+        RunAtStartupSwitch().IsEnabled(!autoToggleEnabled);
+        MinimizeToTraySwitch().IsEnabled(!autoToggleEnabled && !runAtStartupEnabled);
 
-        if (hidEnabled)
+        if (autoToggleEnabled)
         {
-            HidPolicyHintText().Text(
-                L"已启用 HID 自动启停：为保证插拔监听持续有效，开机自启动与常驻系统托盘已强制开启。");
+            InputAutoTouchpadHintText().Text(
+                L"已启用触控板自动启停功能：为保证设备连接状态监听持续有效，开机自启动功能与常驻系统托盘功能已强制开启。");
+        }
+        else if (runAtStartupEnabled)
+        {
+            InputAutoTouchpadHintText().Text(
+                L"已开启开机自启动功能：登录后将以静默方式启动，常驻系统托盘已强制开启以便访问应用。");
         }
         else
         {
-            HidPolicyHintText().Text(
-                L"启用 HID 自动启停后，将强制开启开机自启动与常驻系统托盘，以确保后台监听。");
+            InputAutoTouchpadHintText().Text(
+                L"启用触控板自动启停功能时，将强制开启开机自启动功能与常驻系统托盘功能。"
+                L"启用开机自启动功能时，也将强制开启常驻系统托盘功能。");
         }
     }
 
-    void MainWindow::LoadHidSettingsUi()
+    void MainWindow::LoadInputDeviceSettingsUi()
     {
-        m_hidSettingsLoading = true;
+        m_inputDeviceSettingsLoading = true;
 
-        m_monitoredHidDevices = m_localSettings.LoadMonitoredHidDevices();
-        for (auto& device : m_monitoredHidDevices)
-        {
-            device.label = StripVidPidSuffix(std::move(device.label));
-        }
-        HidAutoTouchpadSwitch().IsOn(m_localSettings.LoadHidAutoTouchpadEnabled());
+        m_monitoredInputDevices = m_localSettings.LoadMonitoredInputDevices();
+        InputAutoTouchpadSwitch().IsOn(m_localSettings.LoadInputAutoTouchpadEnabled());
         RunAtStartupSwitch().IsOn(m_localSettings.LoadRunAtStartup());
         MinimizeToTraySwitch().IsOn(m_localSettings.LoadMinimizeToTrayOnClose());
 
-        if (HidAutoTouchpadSwitch().IsOn())
+        if (InputAutoTouchpadSwitch().IsOn())
         {
-            if (!RunAtStartupSwitch().IsOn())
-            {
-                RunAtStartupSwitch().IsOn(true);
-                m_localSettings.SaveRunAtStartup(true);
-                m_autoStart.SetEnabled(true);
-            }
-            if (!MinimizeToTraySwitch().IsOn())
-            {
-                MinimizeToTraySwitch().IsOn(true);
-                m_localSettings.SaveMinimizeToTrayOnClose(true);
-            }
+            EnforceAutoToggleDependencies();
+        }
+        else if (RunAtStartupSwitch().IsOn())
+        {
+            EnforceRunAtStartupDependencies();
         }
 
-        ApplyHidPolicyLocks();
-        RefreshAvailableHidDevices();
+        ApplyInputAutoTouchpadPolicyLocks();
 
-        m_hidSettingsLoading = false;
+        m_inputDeviceSettingsLoading = false;
     }
 
-    void MainWindow::RefreshAvailableHidDevices()
+    void MainWindow::ScheduleInputDeviceRefresh()
     {
-        m_availableHidDevices = m_hidEnumeration.ListConnectedHidDevices(true);
-
-        bool labelsChanged = false;
-        for (auto& monitored : m_monitoredHidDevices)
+        if (!m_dispatcherQueue)
         {
-            for (auto const& online : m_availableHidDevices)
+            m_dispatcherQueue = DispatcherQueue::GetForCurrentThread();
+        }
+
+        if (!m_dispatcherQueue)
+        {
+            return;
+        }
+
+        m_dispatcherQueue.TryEnqueue([this]()
+        {
+            (void)RefreshAvailableInputDevicesAsync();
+        });
+    }
+
+    winrt::Windows::Foundation::IAsyncAction MainWindow::RefreshAvailableInputDevicesAsync()
+    {
+        if (m_inputDeviceRefreshInProgress)
+        {
+            co_return;
+        }
+
+        m_inputDeviceRefreshInProgress = true;
+        const winrt::apartment_context uiContext;
+
+        co_await winrt::resume_background();
+        const auto devices = m_inputEnumeration.ListInputDevices();
+
+        co_await uiContext;
+
+        m_availableInputDevices = devices;
+
+        bool monitoredChanged = false;
+        for (auto& monitored : m_monitoredInputDevices)
+        {
+            bool matchedCurrentEnumeration = false;
+            for (auto const& device : m_availableInputDevices)
             {
-                if (AppServices::HidDevicesMatch(monitored, online) && monitored.label != online.label)
+                if (!AppServices::InputDevicesMatch(monitored, device))
                 {
-                    monitored.label = online.label;
-                    labelsChanged = true;
+                    continue;
+                }
+
+                matchedCurrentEnumeration = true;
+
+                if (monitored.label != device.label)
+                {
+                    monitored.label = device.label;
+                    monitoredChanged = true;
+                }
+
+                if (IsEqualGUID(monitored.containerId, device.containerId) == FALSE)
+                {
+                    monitored.containerId = device.containerId;
+                    monitoredChanged = true;
+                }
+
+                if (monitored.matchKey.empty() && !device.matchKey.empty())
+                {
+                    monitored.matchKey = device.matchKey;
+                    monitoredChanged = true;
+                }
+            }
+
+            if (!matchedCurrentEnumeration && monitored.matchKey.empty())
+            {
+                std::vector<AppServices::InputDeviceInfo const*> labelMatches;
+                for (auto const& device : m_availableInputDevices)
+                {
+                    if (device.connected && device.label == monitored.label)
+                    {
+                        labelMatches.push_back(&device);
+                    }
+                }
+
+                if (labelMatches.size() == 1)
+                {
+                    monitored.containerId = labelMatches[0]->containerId;
+                    if (!labelMatches[0]->matchKey.empty())
+                    {
+                        monitored.matchKey = labelMatches[0]->matchKey;
+                    }
+                    monitoredChanged = true;
                 }
             }
         }
 
-        if (labelsChanged)
+        if (monitoredChanged)
         {
-            SaveMonitoredHidDevices();
+            SaveMonitoredInputDevices();
         }
 
-        RefreshHidDeviceListsUi();
+        RefreshInputDeviceListsUi();
+
+        if (IsInputAutoTouchpadEnabled())
+        {
+            m_inputMonitor.ReconcileNow(m_availableInputDevices);
+        }
+
+        m_inputDeviceRefreshInProgress = false;
     }
 
-    void MainWindow::RefreshHidDeviceListsUi()
+    void MainWindow::RefreshInputDeviceListsUi()
     {
-        MonitoredHidListView().Items().Clear();
-        UnmonitoredHidListView().Items().Clear();
+        MonitoredInputDeviceListView().Items().Clear();
+        UnmonitoredInputDeviceListView().Items().Clear();
 
-        for (size_t i = 0; i < m_monitoredHidDevices.size(); ++i)
+        for (size_t i = 0; i < m_monitoredInputDevices.size(); ++i)
         {
-            Grid row{};
-            row.ColumnSpacing(8);
-            row.Padding({ kHidDeviceRowIndent, 4, 0, 4 });
-
-            ColumnDefinition labelColumn{};
-            ColumnDefinition buttonColumn{};
-            buttonColumn.Width(GridLengthHelper::Auto());
-            row.ColumnDefinitions().Append(labelColumn);
-            row.ColumnDefinitions().Append(buttonColumn);
-
-            TextBlock label{};
-            label.Text(m_monitoredHidDevices[i].label);
-            label.TextWrapping(TextWrapping::WrapWholeWords);
-            label.VerticalAlignment(VerticalAlignment::Center);
-            if (!IsMonitoredDeviceOnline(m_monitoredHidDevices[i], m_availableHidDevices))
-            {
-                label.Opacity(kOfflineHidDeviceLabelOpacity);
-            }
-            Grid::SetColumn(label, 0);
-
-            Button removeButton{};
-            removeButton.Content(box_value(L"移除"));
-            removeButton.VerticalAlignment(VerticalAlignment::Center);
-            Grid::SetColumn(removeButton, 1);
-            removeButton.Click([this, i](IInspectable const&, RoutedEventArgs const&)
-            {
-                RemoveMonitoredHidDevice(i);
-            });
-
-            row.Children().Append(label);
-            row.Children().Append(removeButton);
-            MonitoredHidListView().Items().Append(row);
+            const bool dimLabel = !m_inputEnumeration.IsMonitoredDeviceOnline(
+                m_monitoredInputDevices[i],
+                m_availableInputDevices);
+            MonitoredInputDeviceListView().Items().Append(BuildInputDeviceListRow(
+                m_monitoredInputDevices[i].label,
+                dimLabel,
+                L"移除",
+                [this, i](IInspectable const&, RoutedEventArgs const&)
+                {
+                    RemoveMonitoredInputDevice(i);
+                }));
         }
 
-        for (size_t i = 0; i < m_availableHidDevices.size(); ++i)
+        size_t unmonitoredCount = 0;
+        for (size_t i = 0; i < m_availableInputDevices.size(); ++i)
         {
-            const auto& device = m_availableHidDevices[i];
+            const auto& device = m_availableInputDevices[i];
             const bool alreadyMonitored = std::any_of(
-                m_monitoredHidDevices.begin(),
-                m_monitoredHidDevices.end(),
-                [&](AppServices::MonitoredHidDevice const& item)
+                m_monitoredInputDevices.begin(),
+                m_monitoredInputDevices.end(),
+                [&](AppServices::MonitoredInputDevice const& item)
                 {
-                    return AppServices::HidDevicesMatch(item, device);
+                    return AppServices::InputDevicesMatch(item, device);
                 });
             if (alreadyMonitored)
             {
                 continue;
             }
 
-            Grid row{};
-            row.ColumnSpacing(8);
-            row.Padding({ kHidDeviceRowIndent, 4, 0, 4 });
+            ++unmonitoredCount;
 
-            ColumnDefinition labelColumn{};
-            ColumnDefinition buttonColumn{};
-            buttonColumn.Width(GridLengthHelper::Auto());
-            row.ColumnDefinitions().Append(labelColumn);
-            row.ColumnDefinitions().Append(buttonColumn);
-
-            TextBlock label{};
-            label.Text(device.label);
-            label.TextWrapping(TextWrapping::WrapWholeWords);
-            label.VerticalAlignment(VerticalAlignment::Center);
-            label.Opacity(kOfflineHidDeviceLabelOpacity);
-            Grid::SetColumn(label, 0);
-
-            Button addButton{};
-            addButton.Content(box_value(L"添加"));
-            addButton.VerticalAlignment(VerticalAlignment::Center);
-            Grid::SetColumn(addButton, 1);
-            addButton.Click([this, i](IInspectable const&, RoutedEventArgs const&)
-            {
-                if (i >= m_availableHidDevices.size())
+            UnmonitoredInputDeviceListView().Items().Append(BuildInputDeviceListRow(
+                device.label,
+                !device.connected,
+                L"添加",
+                [this, i](IInspectable const&, RoutedEventArgs const&)
                 {
-                    return;
-                }
+                    if (i >= m_availableInputDevices.size())
+                    {
+                        return;
+                    }
 
-                AddMonitoredHidDevice(m_availableHidDevices[i]);
-            });
-
-            row.Children().Append(label);
-            row.Children().Append(addButton);
-            UnmonitoredHidListView().Items().Append(row);
+                    AddMonitoredInputDevice(m_availableInputDevices[i]);
+                }));
         }
+
+        InputDeviceListSeparator().Visibility(
+            !m_monitoredInputDevices.empty() && unmonitoredCount > 0
+                ? Visibility::Visible
+                : Visibility::Collapsed);
     }
 
-    void MainWindow::AddMonitoredHidDevice(AppServices::HidDeviceInfo const& device)
+    void MainWindow::AddMonitoredInputDevice(AppServices::InputDeviceInfo const& device)
     {
         const bool exists = std::any_of(
-            m_monitoredHidDevices.begin(),
-            m_monitoredHidDevices.end(),
-            [&](AppServices::MonitoredHidDevice const& item)
+            m_monitoredInputDevices.begin(),
+            m_monitoredInputDevices.end(),
+            [&](AppServices::MonitoredInputDevice const& item)
             {
-                return AppServices::HidDevicesMatch(item, device);
+                return AppServices::InputDevicesMatch(item, device);
             });
         if (exists)
         {
             return;
         }
 
-        AppServices::MonitoredHidDevice entry{};
-        entry.vid = device.vid;
-        entry.pid = device.pid;
-        entry.label = device.label;
-        m_monitoredHidDevices.push_back(std::move(entry));
+        m_monitoredInputDevices.push_back(ToMonitoredDevice(device));
 
-        SaveMonitoredHidDevices();
-        RefreshHidDeviceListsUi();
-        if (m_localSettings.LoadHidAutoTouchpadEnabled())
+        SaveMonitoredInputDevices();
+        RefreshInputDeviceListsUi();
+        if (IsInputAutoTouchpadEnabled())
         {
-            m_hidMonitor.ReconcileNow();
+            m_inputMonitor.ReconcileNow(m_availableInputDevices);
         }
     }
 
-    void MainWindow::RemoveMonitoredHidDevice(size_t index)
+    void MainWindow::RemoveMonitoredInputDevice(size_t index)
     {
-        if (index >= m_monitoredHidDevices.size())
+        if (index >= m_monitoredInputDevices.size())
         {
             return;
         }
 
-        m_monitoredHidDevices.erase(m_monitoredHidDevices.begin() + static_cast<std::ptrdiff_t>(index));
-        SaveMonitoredHidDevices();
-        RefreshHidDeviceListsUi();
-        if (m_localSettings.LoadHidAutoTouchpadEnabled())
+        m_monitoredInputDevices.erase(m_monitoredInputDevices.begin() + static_cast<std::ptrdiff_t>(index));
+        SaveMonitoredInputDevices();
+        RefreshInputDeviceListsUi();
+        if (IsInputAutoTouchpadEnabled())
         {
-            m_hidMonitor.ReconcileNow();
+            m_inputMonitor.ReconcileNow(m_availableInputDevices);
         }
     }
 
-    void MainWindow::SaveMonitoredHidDevices()
+    void MainWindow::SaveMonitoredInputDevices()
     {
-        m_localSettings.SaveMonitoredHidDevices(m_monitoredHidDevices);
-        m_hidMonitor.SetMonitoredDevices(m_monitoredHidDevices);
+        m_localSettings.SaveMonitoredInputDevices(m_monitoredInputDevices);
+        m_inputMonitor.SetMonitoredDevices(m_monitoredInputDevices);
     }
 
-    void MainWindow::StartHidMonitoring()
+    void MainWindow::StartInputMonitoring()
     {
-        const bool enabled = m_localSettings.LoadHidAutoTouchpadEnabled();
-        m_hidMonitor.SetEnabled(enabled);
-        m_hidMonitor.SetMonitoredDevices(m_monitoredHidDevices);
-        m_hidMonitor.SetDeviceChangeCallback([this]()
+        const bool enabled = IsInputAutoTouchpadEnabled();
+        m_inputMonitor.SetEnabled(enabled);
+        m_inputMonitor.SetMonitoredDevices(m_monitoredInputDevices);
+        m_inputMonitor.SetDeviceChangeCallback([this]()
         {
-            RefreshAvailableHidDevices();
+            ScheduleInputDeviceRefresh();
         });
 
-        const HWND hwnd = GetWindowHandle();
-        if (!hwnd)
+        m_inputMonitor.StartWatching();
+    }
+
+    void MainWindow::StopInputMonitoring()
+    {
+        m_inputMonitor.SetEnabled(false);
+        m_inputMonitor.StopWatching();
+    }
+
+    void MainWindow::InputAutoTouchpadSwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
+    {
+        if (m_inputDeviceSettingsLoading)
         {
             return;
         }
 
-        m_hidMonitor.RegisterNotifications(hwnd);
+        const bool enabled = InputAutoTouchpadSwitch().IsOn();
+        m_localSettings.SaveInputAutoTouchpadEnabled(enabled);
 
         if (enabled)
         {
-            m_hidMonitor.ReconcileNow();
-        }
-    }
-
-    void MainWindow::StopHidMonitoring()
-    {
-        m_hidMonitor.SetEnabled(false);
-        m_hidMonitor.UnregisterNotifications();
-    }
-
-    void MainWindow::HidAutoTouchpadSwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
-    {
-        if (m_hidSettingsLoading)
-        {
-            return;
+            EnforceAutoToggleDependencies();
         }
 
-        const bool enabled = HidAutoTouchpadSwitch().IsOn();
-        m_localSettings.SaveHidAutoTouchpadEnabled(enabled);
-
-        if (enabled)
-        {
-            m_hidSettingsLoading = true;
-            RunAtStartupSwitch().IsOn(true);
-            MinimizeToTraySwitch().IsOn(true);
-            m_hidSettingsLoading = false;
-
-            m_localSettings.SaveRunAtStartup(true);
-            m_localSettings.SaveMinimizeToTrayOnClose(true);
-            m_autoStart.SetEnabled(true);
-        }
-
-        ApplyHidPolicyLocks();
+        ApplyInputAutoTouchpadPolicyLocks();
         UpdateTrayIconState();
-        StartHidMonitoring();
+        StartInputMonitoring();
+
+        if (enabled)
+        {
+            ScheduleInputDeviceRefresh();
+        }
+        else
+        {
+            AppServices::TouchpadToggleService toggleService{};
+            toggleService.RequestEnabledAsync(true);
+        }
     }
 
-    void MainWindow::HidRefreshButton_Click(IInspectable const&, RoutedEventArgs const&)
+    winrt::Windows::Foundation::IAsyncAction MainWindow::InputDeviceRefreshButton_Click(IInspectable const&, RoutedEventArgs const&)
     {
-        RefreshAvailableHidDevices();
+        co_await RefreshAvailableInputDevicesAsync();
     }
 
     void MainWindow::RunAtStartupSwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
     {
-        if (m_hidSettingsLoading || HidAutoTouchpadSwitch().IsOn())
+        if (m_inputDeviceSettingsLoading || InputAutoTouchpadSwitch().IsOn())
         {
             return;
         }
@@ -1153,11 +1293,21 @@ namespace winrt::TouchpadShield::implementation
         const bool enabled = RunAtStartupSwitch().IsOn();
         m_localSettings.SaveRunAtStartup(enabled);
         m_autoStart.SetEnabled(enabled);
+
+        if (enabled)
+        {
+            EnforceRunAtStartupDependencies();
+        }
+
+        ApplyInputAutoTouchpadPolicyLocks();
+        UpdateTrayIconState();
     }
 
     void MainWindow::MinimizeToTraySwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
     {
-        if (m_hidSettingsLoading || HidAutoTouchpadSwitch().IsOn())
+        if (m_inputDeviceSettingsLoading ||
+            InputAutoTouchpadSwitch().IsOn() ||
+            RunAtStartupSwitch().IsOn())
         {
             return;
         }

@@ -1,6 +1,7 @@
 # Touchpad Shield 开发指导
 
-> 本文档基于当前代码库（**v1.0.0 build 0031**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
+> 本文档基于当前代码库（**v1.1.0**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
+> 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)。  
 > 构建规范以 [`.cursor/rules/touchpad-shield-build.mdc`](../.cursor/rules/touchpad-shield-build.mdc) 为准；本文第四节与之保持一致并展开说明。
 
 ---
@@ -129,8 +130,8 @@ flowchart TB
 
 | 区域 | 内容 |
 |------|------|
-| **顶部** | 软件名称「Touchpad Shield」、**刷新数据**按钮、右侧超链接 **更多触控板功能设定**（打开 `ms-settings:devices-touchpad`） |
-| **中部** | 左 / 中 / 右三栏（列宽比 **4:6:3**）。左栏：灵敏度设定 + 屏蔽区域设定；中栏：笔记本型号、触控板物理尺寸、触控板示意图；右栏：外接 HID 与触控板自动启停 |
+| **顶部** | 软件名称「Touchpad Shield」、右侧超链接 **更多触控板功能设定**（打开 `ms-settings:devices-touchpad`） |
+| **中部** | 左 / 中 / 右三栏（列宽比 **41:55:34**）。左栏：**刷新数据**按钮 + 灵敏度设定 + 屏蔽区域设定；中栏：笔记本型号、触控板物理尺寸、触控板示意图；右栏：外接输入设备与触控板自动启停 |
 | **底部** | 左侧（条件显示）：屏蔽区域变更重启提示 + **重启**按钮；右侧：作者信息 + 版本号 |
 
 **窗口与间距：**
@@ -143,24 +144,26 @@ flowchart TB
 
 ---
 
-### 3.3.1 右栏 — 外接 HID 与触控板自动启停 (External HID & Touchpad Auto Toggle)
+### 3.3.1 右栏 — 外接输入设备与触控板自动启停 (External Input & Touchpad Auto Toggle)
 
-（1）启用后监听 `WM_DEVICECHANGE`（`RegisterDeviceNotification` + `GUID_DEVINTERFACE_HID`），**不做定时轮询**。
+（1）应用完成 `CompletePlatformSetup` 后始终注册 `PnpObjectWatcher`（进程存活期间），**不做定时轮询**。关闭「启用自动启停」时仅停止 reconcile / F24 切换（`InputDeviceMonitorService::ReconcileNow` 在 `m_enabled==false` 时早退），**不停止 watcher**；设备插拔仍会触发列表刷新，便于随时查看/编辑监控设备。**此为有意设计，非缺陷。**
 
-（2）用户从当前已连接 HID 列表（友好名 + VID/PID）添加监控设备；枚举时**默认排除内置 Precision Touchpad**。
+（2）设备列表与 **Windows 设置 → 蓝牙和其他设备 → 设备 → 输入** 同源：`PnpObject::FindAllAsync(DeviceContainer)`，过滤 `CategoryIds` 含 `Input.` 的容器；**默认排除内置 Precision Touchpad**（`LocalMachine` 与 Touchpad 类别）。仅展示 **`Connected == true` 或 `Paired == true`** 的容器（已配对但未连接仍显示；排除未配对且未连接的历史残留 Container）。
 
-（3）行为：
+（3）监控键为 **ContainerId**（当前连接实例）+ **matchKey**（跨端口稳定键，优先 `System.Devices.ModelId` 中的 `USB\VID_xxxx&PID_yyyy`，否则回退为规范化显示名）。匹配时两者任一相等即视为同一设备；换 USB 口后会自动更新 ContainerId。在线判定为 `System.Devices.Connected == true`。
+
+（4）行为：
 - 名单内任一设备在线且 `Status\Enabled==1` → `SendInput` `Ctrl+Win+F24` 关闭触控板；
 - 名单内设备全部离线且 `Status\Enabled==0` → 发送 F24 开启；
-- 启动或开启功能时做一次全量对齐（处理启动前已插入设备）。
+- 启动或开启功能时做一次全量对齐（处理启动前已连接设备）。
 
-（4）切换后确认：`SendInput` 后等待 `TouchpadToggleVerifyDelayMs`（默认 **500ms**，代码常量可调），再读 `Status\Enabled`；未达期望则最多补偿 1 次。
+（5）切换后确认：`SendInput` 后等待 `TouchpadToggleVerifyDelayMs`（默认 **500ms**，代码常量可调），再读 `Status\Enabled`；未达期望则最多补偿 1 次。
 
-（5）启用 HID 侦测时强制并锁定「开机自启动」「点击 X 缩小到系统托盘」；托盘在两项任一开启时创建。
+（6）启用自动启停时强制并锁定「开机自启动」「点击 X 缩小到系统托盘」；**仅开启开机自启动**时亦强制并锁定「常驻系统托盘」（避免 `--startup` 静默启动后无窗口且无托盘）；托盘在自启、常驻托盘或自动启停任一开启时创建。
 
-（6）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`）：`HidAutoTouchpadEnabled`、`MonitoredHidDevices`（JSON）、`RunAtStartup`、`MinimizeToTrayOnClose`。
+（7）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`，**各 Windows 用户独立 HKCU**）：`InputAutoTouchpadEnabled`、`MonitoredInputDevices`（JSON：`containerId` + `label` + 可选 `matchKey`）、`RunAtStartup`、`MinimizeToTrayOnClose`、`AutostartHandledSessionId`（REG_DWORD，同会话内 `--startup` 已处理标记，内部用）。**正式版不包含**早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）的读写或迁移；若注册表残留此类键，应用忽略。
 
-（7）自启：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TouchpadShield` → `"<exe路径>" --startup`；带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与 HID 监听（仍会触发 UAC）。
+（8）自启：通过任务计划程序注册 `\TouchpadShield`（**当前用户登录时**触发、触发器与 Principal 绑定当前用户 SAM 名、`RunLevel=Highest`、执行 `"<exe路径>" --startup`）；同时移除无效的 HKCU Run 遗留项。带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与输入设备监听（`PrepareSilentStartup` 隐藏窗口，不调用 `Activate()`）。`--startup` 成功进托盘后写入 `AutostartHandledSessionId`；同 Windows 会话内再次 `--startup` 直接退出（快速切换回已登录用户无新登录动作，通常不会再次触发任务）。注销再登录 → 新 SessionId → 可再次自启。各用户仅受本用户 `RunAtStartup` 设置约束。
 
 ---
 
@@ -298,7 +301,9 @@ flowchart TB
 
 ### 3.11 刷新数据
 
-顶部 **刷新数据** 按钮调用 `LoadAllData()`，重新读取注册表、BIOS、CSV 匹配、本地设置，并刷新 UI 与示意图。不会重置 Curtain 重启提示状态（除非重新加载后再次写入 Curtain）。
+左栏 **灵敏度设定** 标题旁的 **刷新数据** 按钮调用 `LoadAllData()`，重新读取注册表、BIOS、CSV 匹配、本地设置，并刷新 UI 与示意图。不会重置 Curtain 重启提示状态（除非重新加载后再次写入 Curtain）。
+
+右栏 **刷新设备** 按钮调用 `RefreshAvailableInputDevicesAsync()`，刷新输入设备列表并在自动启停开启时执行 reconcile。
 
 ---
 
@@ -497,11 +502,65 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | 日志 | `Services/Logger.*` | Debug 文件日志 |
 | 触控板状态 | `Services/TouchpadStatusService.*` | 只读 `Status\Enabled` |
 | 触控板切换 | `Services/TouchpadToggleService.*` | SendInput F24 + 延迟确认与补偿 |
-| HID 枚举 | `Services/HidDeviceEnumerationService.*` | SetupAPI 枚举 HID、VID/PID 匹配 |
-| HID 监控 | `Services/HidDeviceMonitorService.*` | 设备通知、插拔 reconcile |
+| 输入设备枚举 | `Services/InputDeviceEnumerationService.*` | PnpObject DeviceContainer、Input 类别过滤 |
+| 输入设备监控 | `Services/InputDeviceMonitorService.*` | PnpObjectWatcher、连接状态 reconcile |
 | 托盘 | `Services/TrayIconService.*` | Shell_NotifyIcon、菜单 |
-| 自启 | `Services/AutoStartService.*` | HKCU Run |
+| 自启 | `Services/AutoStartService.*` | 任务计划程序登录触发 + 清理 HKCU Run |
 | 单实例 | `Services/SingleInstanceService.*` | Mutex + 激活已有窗口 |
+| XAML 本地类型 | `XamlLocalTypes.h` | 仅供生成的 `XamlTypeInfo.g.cpp` 强制 include；含 pch + 窗口头，配合 `PrecompiledHeader=NotUsing` |
+
+### 6.1 代码维护约定（已确认，勿再提议重构）
+
+以下约定经产品负责人确认。**后续代码审查、AI 辅助开发均不得再建议对下列项做「合并 / 抽象 / 删除」类优化**，除非用户明确提出新需求。
+
+#### （1）有意保留的「对称重复」代码
+
+**Curtain 与 SuperCurtain 事件处理**（`MainWindow.xaml.cpp`）：
+
+- `SmartAreaSwitch_Toggled` / `SmartEdgeSwitch_Toggled`
+- `CurtainValueChanged` / `SuperCurtainValueChanged`
+
+两组逻辑结构相似，但分别调用不同的 HKLM API（`APP_SetCurtainMm` vs `APP_SetSuperCurtainMm`）与 UI  setter（`SetCurtainUi` vs `SetSuperCurtainUi`）。XAML 须绑定具名 handler，合并为参数化函数只会增加 indirection，**保持四个独立 handler**。
+
+**WindowBoundsHelper 与 TrayIconService 的 `SetWindowSubclass`**：
+
+- `WindowBoundsHelper::SubclassProc`：仅处理 `WM_GETMINMAXINFO`（最小窗口尺寸 + DPI）
+- `TrayIconService::SubclassProc`：处理 `WM_TRAYICON`（托盘点击与菜单）
+
+二者仅共享 Win32 subclass 样板，**消息语义完全不同**；抽公共 helper 收益低、回归风险高，**保持两处独立实现**。
+
+**TouchpadParametersService 独立模块**：
+
+- 仅由 `RegistryService` 调用，封装 `SPI_GET/SETTOUCHPADPARAMETERS`
+- 与 HKCU 注册表 fallback 读写分离，**勿合并进 RegistryService**
+
+#### （2）有意保留的构建 / 资源行为
+
+- **`Assets/TouchpadShieldLogo.png` 的 CopyAssets**：源 PNG 供 `scripts/generate-icons.ps1` 生成 `.ico`；运行时 UI 使用 `TouchpadShield.ico`，**不要删除** vcxproj 中的复制步骤，除非图标生成流程一并调整。
+- **WebView2 包依赖**：WinAppSDK C++/WinRT 构建链需要，**不可移除**。
+
+#### （3）已完成的清理（截至 v1.1.0，勿重复劳动）
+
+| 项 | 说明 |
+|----|------|
+| HID 遗留源文件 | `HidDevice*` 已从工程移除；持久化键为 `InputAutoTouchpadEnabled` / `MonitoredInputDevices`；**无** HID 实验键迁移逻辑 |
+| `ShouldMinimizeToTrayOnClose` | 已删除，统一使用 `RequiresTrayIcon()` |
+| pch 瘦身 | 移除未用 WinRT 头、`MainWindow`/`StartupWindow` 头链；`XamlTypeInfo.g.cpp` 经 `XamlLocalTypes.h` + `/FI` 单独 include |
+| PnP 属性向量 | `InputDeviceEnumerationService::BuildContainerPropertyNamesList()` 供枚举与监控共用 |
+| 设备列表 UI 行 | `BuildInputDeviceListRow()` 供监控/未监控列表共用 |
+| `AutoStartService` | 任务计划程序 COM API 注册登录任务；`RemoveRunKey` 清理遗留 Run 项 |
+
+#### （4）持久化键命名（v1.1.0+）
+
+| 键名 | 用途 |
+|------|------|
+| `InputAutoTouchpadEnabled` | 触控板自动启停开关 |
+| `MonitoredInputDevices` | 监控设备 JSON（`containerId` + `label` + 可选 `matchKey`） |
+| `RunAtStartup` | 开机自启动（计划任务，每用户独立） |
+| `MinimizeToTrayOnClose` | 关闭时缩小到托盘 |
+| `AutostartHandledSessionId` | 同会话 `--startup` 已处理标记（REG_DWORD，内部） |
+
+早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）**未在正式版发布**；正式版不读取、不迁移、不删除，应用忽略残留键。
 
 **Git 版本库：** 跟踪源码、脚本、`config/`、安装器脚本、开发指导等；忽略 `packages/`、`obj/`、`Generated Files/`、构建产物目录内容（保留 `.gitkeep`）。
 
@@ -509,7 +568,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 ## 七、实现状态与后续规划
 
-### 7.1 当前已实现（v1.0.1 build 0033）
+### 7.1 当前已实现（v1.1.0）
 
 - WinUI 3 原生风格 UI、PerMonitorV2 缩放、1560×900 最小窗口、主功能区左/中/右三栏；
 - 灵敏度四件套（含单击灵敏度吸附方案）；
@@ -518,8 +577,8 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 - DPI 驱动的触控板示意图（Canvas 370px）与 SuperCurtain 重叠**两行**警告；
 - UAC 提权、Curtain 键补全、StartupWindow 启动态；
 - SPI 优先的 HKCU 读写、RegistryUserContext；
-- **外接 HID 自动启停触控板**（设备推送、F24 切换、延迟确认、监控名单 JSON）；
-- **系统托盘**、**开机自启**、**单实例**、HID 开启时强制托盘+自启；
+- **外接输入设备自动启停触控板**（Device Container + PnpObjectWatcher、F24 切换、延迟确认、`MonitoredInputDevices` JSON）；
+- **系统托盘**、**开机自启**、**单实例**、自动启停开启时强制托盘+自启；
 - 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；
 - 本地 Git 版本管理（`main` 主干）。
 
@@ -535,9 +594,11 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 | 文档 | 用途 |
 |------|------|
-| `Touchpad_Shield_开发指导.md`（本文档） | 实现细节、界面需求、架构、构建方案 |
+| `Touchpad_Shield_开发指导.md`（本文档） | 实现细节、界面需求、架构、构建方案、**代码维护约定（§6.1）** |
+| `Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md` | **v1.0.0 → v1.1.0** 功能与界面变更梳理 |
 | `README.md` | 项目概览、快速构建、对外说明 |
 | `LICENSE` | Apache License 2.0（Copyright 2026 ZiMiaoWorkshop） |
 | `.cursor/rules/touchpad-shield-build.mdc` | Cursor 构建规则（精简版） |
+| `.cursor/rules/touchpad-shield-code.mdc` | Cursor 代码维护约定（禁止重复提议的 refactor） |
 
 功能或构建流程变更时，应同步更新**开发指导**、**README** 与 **build 规则**；涉及产品行为变更时，需与产品负责人确认后再改文档。

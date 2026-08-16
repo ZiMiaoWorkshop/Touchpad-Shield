@@ -2,9 +2,6 @@
 #include "Services/Logger.h"
 
 #include <ShlObj.h>
-#include <chrono>
-#include <iomanip>
-#include <iostream>
 
 std::mutex Logger::s_mutex{};
 

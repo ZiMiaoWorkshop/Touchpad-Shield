@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Services/CsvConfigService.h"
+#include "Services/StringUtils.h"
 #include "Services/UnitConversion.h"
 
 namespace TouchpadShield::Services
@@ -200,18 +201,5 @@ namespace TouchpadShield::Services
         }
         parts.push_back(Trim(current));
         return parts;
-    }
-
-    std::wstring CsvConfigService::Trim(std::wstring value)
-    {
-        while (!value.empty() && iswspace(value.front()))
-        {
-            value.erase(value.begin());
-        }
-        while (!value.empty() && iswspace(value.back()))
-        {
-            value.pop_back();
-        }
-        return value;
     }
 }

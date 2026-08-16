@@ -7,11 +7,7 @@ namespace TouchpadShield::Services
     {
         BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
         {
-            if (!IsWindowVisible(hwnd) && !IsIconic(hwnd))
-            {
-                // Hidden tray windows may not be visible; still match by title below.
-            }
-
+            // Hidden tray windows may not be visible; still match by title below.
             wchar_t title[256]{};
             const int length = GetWindowTextW(hwnd, title, static_cast<int>(std::size(title)));
             if (length <= 0)

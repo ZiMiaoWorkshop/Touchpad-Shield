@@ -1,0 +1,42 @@
+flowchart TD
+    subgraph trigger [触发路径]
+        EV[PnpObjectWatcher 设备 Container 变更]
+        EV --> REF[ScheduleInputDeviceRefresh 全量重枚举]
+        REF --> REC[ReconcileNow]
+        MAN[用户刷新设备 / 增删监控项 / 启动或开启功能] --> REC
+    end
+
+    REC --> EN{InputAutoTouchpadEnabled?}
+    EN -->|否| IGN[跳过]
+
+    EN -->|是| OC[按 ContainerId 统计名单内在线数 onlineCount]
+
+    subgraph closePath [需关闭触控板]
+        OC --> C1{onlineCount >= 1 且 Enabled==1?}
+        C1 -->|是| REQ_OFF["RequestEnabledAsync(false)"]
+        C1 -->|否| NOOP1[不操作]
+    end
+
+    subgraph openPath [需开启触控板]
+        OC --> C2{onlineCount == 0 且 Enabled==0?}
+        C2 -->|是| REQ_ON["RequestEnabledAsync(true)"]
+        C2 -->|否| NOOP2[不操作]
+    end
+
+    subgraph toggleSvc [TouchpadToggleService 共用]
+        REQ_OFF --> T0
+        REQ_ON --> T0
+        T0{toggleInProgress?}
+        T0 -->|是| SKIP[跳过本次]
+        T0 -->|否| T1{当前 Enabled 已等于目标?}
+        T1 -->|是| SKIP2[跳过]
+        T1 -->|否| T2[SendInput Ctrl+Win+F24]
+        T2 --> T3["等待 TouchpadToggleVerifyDelayMs 默认 500ms"]
+        T3 --> T4[读 Status Enabled]
+        T4 --> T5{已达期望状态?}
+        T5 -->|是| OK[完成]
+        T5 -->|否| T6{未达 MaxAttempts 且 state guard 允许?}
+        T6 -->|是| T7[补偿 SendInput F24]
+        T7 --> T3
+        T6 -->|否| FAIL[Warning 日志 放弃]
+    end

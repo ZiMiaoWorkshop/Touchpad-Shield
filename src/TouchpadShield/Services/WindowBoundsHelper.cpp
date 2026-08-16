@@ -3,7 +3,6 @@
 
 #include <winrt/Microsoft.UI.Interop.h>
 #include <winrt/Microsoft.UI.Windowing.h>
-#include <winrt/Windows.Graphics.h>
 #include <commctrl.h>
 
 #pragma comment(lib, "Comctl32.lib")
@@ -44,6 +43,40 @@ namespace TouchpadShield::Services
                 static_cast<int32_t>(clientWidth),
                 static_cast<int32_t>(clientHeight) });
         }
+    }
+
+    void WindowBoundsHelper::CenterOnWorkArea(HWND hwnd)
+    {
+        if (!hwnd)
+        {
+            return;
+        }
+
+        const auto windowId = winrt::Microsoft::UI::GetWindowIdFromWindow(hwnd);
+        const auto appWindow = winrt::Microsoft::UI::Windowing::AppWindow::GetFromWindowId(windowId);
+        if (!appWindow)
+        {
+            return;
+        }
+
+        const auto displayArea = winrt::Microsoft::UI::Windowing::DisplayArea::GetFromWindowId(
+            windowId,
+            winrt::Microsoft::UI::Windowing::DisplayAreaFallback::Primary);
+        const winrt::Windows::Graphics::RectInt32 work = displayArea.WorkArea();
+        const winrt::Windows::Graphics::SizeInt32 size = appWindow.Size();
+
+        int x = work.X + (work.Width - size.Width) / 2;
+        int y = work.Y + (work.Height - size.Height) / 2;
+        if (x < work.X)
+        {
+            x = work.X;
+        }
+        if (y < work.Y)
+        {
+            y = work.Y;
+        }
+
+        appWindow.MoveAndResize({ x, y, size.Width, size.Height });
     }
 
     LRESULT CALLBACK WindowBoundsHelper::SubclassProc(

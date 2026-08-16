@@ -48,6 +48,8 @@
     <ItemGroup>
       <ClCompile Include="$(XamlGeneratedOutputPath)XamlTypeInfo.g.cpp">
         <CompilerIteration>XamlGenerated</CompilerIteration>
+        <PrecompiledHeader>NotUsing</PrecompiledHeader>
+        <AdditionalOptions>/FI&quot;$(ProjectDir)XamlLocalTypes.h&quot; %(AdditionalOptions)</AdditionalOptions>
       </ClCompile>
       <ClCompile Include="$(XamlGeneratedOutputPath)XamlTypeInfo.Impl.g.cpp" />
       <ClCompile Condition="'$(OutputType)' == 'Library'" Include="$(XamlGeneratedOutputPath)XamlLibMetadataProvider.g.cpp" />

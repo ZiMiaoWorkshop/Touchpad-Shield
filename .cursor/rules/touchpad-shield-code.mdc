@@ -1,0 +1,32 @@
+---
+description: Touchpad Shield 代码维护约定（禁止重复提议的 refactor）
+globs:
+  - "src/**"
+alwaysApply: true
+---
+
+# Touchpad Shield 代码维护约定
+
+完整说明见 `PRD/Touchpad_Shield_开发指导.md` §6.1。以下为 AI 与审查者必须遵守的摘要。
+
+## 禁止再提议的「优化」
+
+除非用户**明确新需求**，不得建议或实施：
+
+1. **合并 Curtain / SuperCurtain 事件 handler**（`SmartAreaSwitch_Toggled`、`SmartEdgeSwitch_Toggled`、`CurtainValueChanged`、`SuperCurtainValueChanged`）——有意保留四个独立 handler。
+2. **抽象 WindowBoundsHelper 与 TrayIconService 的 `SetWindowSubclass` 样板**——两处处理的消息语义不同，保持独立。
+3. **合并 TouchpadParametersService 进 RegistryService**——SPI 封装层，保持独立文件。
+4. **删除 `Assets/TouchpadShieldLogo.png` 的 CopyAssets**——PNG 供图标生成脚本使用。
+5. **移除 WebView2 依赖**——WinAppSDK C++/WinRT 构建需要。
+
+## 已完成清理（勿重复）
+
+- HID 源文件已移除；注册表键为 `InputAutoTouchpadEnabled` / `MonitoredInputDevices`；**无** HID 实验键迁移
+- PnP watcher 在关闭自动启停时仍运行（仅 reconcile 关闭）；见开发指导 §3.3.1（1）
+- pch 已瘦身；`XamlLocalTypes.h` 仅服务 `XamlTypeInfo.g.cpp`
+- `BuildContainerPropertyNamesList()`、`BuildInputDeviceListRow()` 已提取共用
+- `ShouldMinimizeToTrayOnClose` 已删除
+
+## 需求变更
+
+有疑问必须与用户确认，不可自行决定解决方案（与 build 规则一致）。

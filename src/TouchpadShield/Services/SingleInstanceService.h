@@ -11,7 +11,6 @@ namespace TouchpadShield::Services
 
     private:
         static constexpr wchar_t kMutexName[] = L"Global\\TouchpadShield_SingleInstance_v1";
-        static constexpr wchar_t kWindowTitle[] = L"Touchpad Shield";
 
         void* m_mutexHandle{ nullptr };
     };
