@@ -6,17 +6,9 @@ namespace TouchpadShield::Services
 {
     namespace
     {
-        std::wstring ToUpper(std::wstring value)
-        {
-            std::transform(value.begin(), value.end(), value.begin(), ::towupper);
-            return value;
-        }
-
         std::wstring NormalizeLabelKey(std::wstring const& label)
         {
-            std::wstring normalized = Trim(label);
-            std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::towlower);
-            return normalized;
+            return ToLower(Trim(label));
         }
 
         std::wstring NormalizeModelIdKey(std::wstring modelId)

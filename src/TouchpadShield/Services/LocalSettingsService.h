@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Services/AppRegistryPaths.h"
 #include "Services/InputDeviceTypes.h"
 
 #include <optional>
@@ -42,7 +43,6 @@ namespace TouchpadShield::Services
         void SaveMonitoredInputDevices(std::vector<MonitoredInputDevice> const& devices) const;
 
     private:
-        static constexpr wchar_t kAppKeyPath[] = L"Software\\ZiMiaoWorkshop\\TouchpadShield";
         static constexpr wchar_t kInputAutoTouchpadEnabledKey[] = L"InputAutoTouchpadEnabled";
         static constexpr wchar_t kMonitoredInputDevicesKey[] = L"MonitoredInputDevices";
 

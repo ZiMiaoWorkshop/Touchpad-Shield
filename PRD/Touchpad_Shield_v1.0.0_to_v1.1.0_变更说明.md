@@ -225,7 +225,7 @@ flowchart TD
 | 设备模型 | HID 接口 + VID/PID | Device Container + **ContainerId** |
 | 变更通知 | `RegisterDeviceNotification` + `WM_DEVICECHANGE` | **`PnpObjectWatcher`** |
 | reconcile 前置 | 插拔后直接重算 HID 列表 | **先全量重枚举 Container**，再 reconcile |
-| 设备 UI | ComboBox + 监控 ListView | **已监控 / 未监控** 双 ListView |
+| 设备 UI | ComboBox + 监控列表 | **已监控 / 未监控** 双 `ItemsControl`（`MonitoredInputDeviceItems` / `UnmonitoredInputDeviceItems`） |
 | 关闭功能 | 未约定恢复触控板 | **自动 RequestEnabledAsync(true)** |
 | 并发切换 | toggle 进行中忽略新请求 | 同左（`m_toggleInProgress`） |
 | 三栏列宽 | 4 : 6 : 3 | **41 : 55 : 34** |

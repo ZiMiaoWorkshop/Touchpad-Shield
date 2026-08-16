@@ -10,6 +10,7 @@ namespace TouchpadShield::Services
         static constexpr wchar_t kStartupArgument[] = L"--startup";
 
         bool SetEnabled(bool enabled) const;
+        bool EnsureLogonTaskRegistered() const;
         static bool IsStartupLaunch();
         static bool ShouldSkipStartupLaunch();
         static void MarkStartupLaunchHandled();

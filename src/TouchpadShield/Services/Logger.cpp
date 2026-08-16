@@ -2,6 +2,7 @@
 #include "Services/Logger.h"
 
 #include <ShlObj.h>
+#include <sstream>
 
 std::mutex Logger::s_mutex{};
 

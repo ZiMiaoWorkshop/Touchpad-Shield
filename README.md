@@ -4,7 +4,7 @@
 
 Designed and built by **[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**.
 
-**Current version:** 1.1.0 build 0081 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**Current version:** 1.1.0 build 0098 · [Download latest release](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
 
 ---
 

@@ -254,18 +254,26 @@
                                 MinWidth="220"
                                 Padding="16,8" />
                     </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock x:Name="MatchedSizeText" TextWrapping="Wrap" VerticalAlignment="Center" Visibility="Collapsed" />
+                    <Grid ColumnSpacing="12" MinHeight="48">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="0" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MatchedSizeText"
+                                   Grid.Column="0"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
                         <Button x:Name="ApplyMatchedSizeButton"
+                                Grid.Column="1"
                                 Content="应用预设的触控板物理尺寸"
                                 Visibility="Collapsed"
                                 Click="ApplyMatchedSizeButton_Click"
                                 Style="{ThemeResource AccentButtonStyle}"
                                 VerticalAlignment="Center"
-                                MinWidth="260"
-                                Padding="16,8"
-                                FontWeight="SemiBold" />
-                    </StackPanel>
+                                MinWidth="220"
+                                Padding="16,8" />
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Spacing="8">
@@ -366,7 +374,7 @@
                 </Grid>
 
                 <StackPanel Grid.Row="3" Spacing="0">
-                    <ItemsControl x:Name="MonitoredInputDeviceListView"
+                    <ItemsControl x:Name="MonitoredInputDeviceItems"
                                   HorizontalAlignment="Stretch"
                                   Margin="0"
                                   Padding="0">
@@ -394,7 +402,7 @@
                                 Opacity="0.45" />
                     </Grid>
 
-                    <ItemsControl x:Name="UnmonitoredInputDeviceListView"
+                        <ItemsControl x:Name="UnmonitoredInputDeviceItems"
                                   HorizontalAlignment="Stretch"
                                   Margin="0"
                                   Padding="0">

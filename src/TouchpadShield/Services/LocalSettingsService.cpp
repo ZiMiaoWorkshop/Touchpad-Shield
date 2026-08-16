@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Services/LocalSettingsService.h"
+#include "Services/AppRegistryPaths.h"
 #include "Services/UnitConversion.h"
 
 namespace TouchpadShield::Services
@@ -209,7 +210,7 @@ namespace TouchpadShield::Services
     std::optional<std::wstring> LocalSettingsService::ReadStringValue(std::wstring const& name) const
     {
         HKEY key = nullptr;
-        if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppKeyPath, 0, KEY_READ, &key) != ERROR_SUCCESS)
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_READ, &key) != ERROR_SUCCESS)
         {
             return std::nullopt;
         }
@@ -237,7 +238,7 @@ namespace TouchpadShield::Services
     {
         HKEY key = nullptr;
         DWORD disposition = 0;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, kAppKeyPath, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, &disposition) != ERROR_SUCCESS)
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, &disposition) != ERROR_SUCCESS)
         {
             return false;
         }

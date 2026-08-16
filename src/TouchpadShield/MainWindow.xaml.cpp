@@ -172,7 +172,10 @@ namespace winrt::TouchpadShield::implementation
         m_dispatcherQueue = DispatcherQueue::GetForCurrentThread();
         StartInputMonitoring();
         UpdateTrayIconState();
-        m_autoStart.SetEnabled(m_localSettings.LoadRunAtStartup());
+        if (m_localSettings.LoadRunAtStartup())
+        {
+            m_autoStart.EnsureLogonTaskRegistered();
+        }
         m_initialWindowSizeApplied = true;
     }
 
@@ -1126,28 +1129,28 @@ namespace winrt::TouchpadShield::implementation
 
     void MainWindow::RefreshInputDeviceListsUi()
     {
-        MonitoredInputDeviceListView().Items().Clear();
-        UnmonitoredInputDeviceListView().Items().Clear();
+        MonitoredInputDeviceItems().Items().Clear();
+        UnmonitoredInputDeviceItems().Items().Clear();
 
-        for (size_t i = 0; i < m_monitoredInputDevices.size(); ++i)
+        for (auto const& monitoredDevice : m_monitoredInputDevices)
         {
             const bool dimLabel = !m_inputEnumeration.IsMonitoredDeviceOnline(
-                m_monitoredInputDevices[i],
+                monitoredDevice,
                 m_availableInputDevices);
-            MonitoredInputDeviceListView().Items().Append(BuildInputDeviceListRow(
-                m_monitoredInputDevices[i].label,
+            const AppServices::MonitoredInputDevice deviceSnapshot = monitoredDevice;
+            MonitoredInputDeviceItems().Items().Append(BuildInputDeviceListRow(
+                monitoredDevice.label,
                 dimLabel,
                 L"移除",
-                [this, i](IInspectable const&, RoutedEventArgs const&)
+                [this, deviceSnapshot](IInspectable const&, RoutedEventArgs const&)
                 {
-                    RemoveMonitoredInputDevice(i);
+                    RemoveMonitoredInputDevice(deviceSnapshot);
                 }));
         }
 
         size_t unmonitoredCount = 0;
-        for (size_t i = 0; i < m_availableInputDevices.size(); ++i)
+        for (auto const& device : m_availableInputDevices)
         {
-            const auto& device = m_availableInputDevices[i];
             const bool alreadyMonitored = std::any_of(
                 m_monitoredInputDevices.begin(),
                 m_monitoredInputDevices.end(),
@@ -1162,18 +1165,14 @@ namespace winrt::TouchpadShield::implementation
 
             ++unmonitoredCount;
 
-            UnmonitoredInputDeviceListView().Items().Append(BuildInputDeviceListRow(
+            const AppServices::InputDeviceInfo deviceSnapshot = device;
+            UnmonitoredInputDeviceItems().Items().Append(BuildInputDeviceListRow(
                 device.label,
                 !device.connected,
                 L"添加",
-                [this, i](IInspectable const&, RoutedEventArgs const&)
+                [this, deviceSnapshot](IInspectable const&, RoutedEventArgs const&)
                 {
-                    if (i >= m_availableInputDevices.size())
-                    {
-                        return;
-                    }
-
-                    AddMonitoredInputDevice(m_availableInputDevices[i]);
+                    AddMonitoredInputDevice(deviceSnapshot);
                 }));
         }
 
@@ -1207,14 +1206,25 @@ namespace winrt::TouchpadShield::implementation
         }
     }
 
-    void MainWindow::RemoveMonitoredInputDevice(size_t index)
+    void MainWindow::RemoveMonitoredInputDevice(AppServices::MonitoredInputDevice const& target)
     {
-        if (index >= m_monitoredInputDevices.size())
+        const auto match = std::find_if(
+            m_monitoredInputDevices.begin(),
+            m_monitoredInputDevices.end(),
+            [&](AppServices::MonitoredInputDevice const& item)
+            {
+                AppServices::InputDeviceInfo online{};
+                online.containerId = target.containerId;
+                online.matchKey = target.matchKey;
+                online.label = target.label;
+                return AppServices::InputDevicesMatch(item, online);
+            });
+        if (match == m_monitoredInputDevices.end())
         {
             return;
         }
 
-        m_monitoredInputDevices.erase(m_monitoredInputDevices.begin() + static_cast<std::ptrdiff_t>(index));
+        m_monitoredInputDevices.erase(match);
         SaveMonitoredInputDevices();
         RefreshInputDeviceListsUi();
         if (IsInputAutoTouchpadEnabled())

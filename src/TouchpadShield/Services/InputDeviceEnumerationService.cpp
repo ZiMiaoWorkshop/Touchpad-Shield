@@ -1,7 +1,11 @@
 #include "pch.h"
 #include "Services/InputDeviceEnumerationService.h"
+#include "Services/InputDeviceTypes.h"
+#include "Services/StringUtils.h"
 
 #include <winrt/Windows.Devices.Enumeration.h>
+#include <winrt/Windows.Devices.Enumeration.PnP.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Devices.Enumeration.PnP.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
@@ -14,20 +18,6 @@ namespace TouchpadShield::Services
 {
     namespace
     {
-        bool ContainsInsensitive(std::wstring const& haystack, std::wstring const& needle)
-        {
-            if (needle.empty())
-            {
-                return false;
-            }
-
-            std::wstring lowerHay = haystack;
-            std::wstring lowerNeedle = needle;
-            std::transform(lowerHay.begin(), lowerHay.end(), lowerHay.begin(), ::towlower);
-            std::transform(lowerNeedle.begin(), lowerNeedle.end(), lowerNeedle.begin(), ::towlower);
-            return lowerHay.find(lowerNeedle) != std::wstring::npos;
-        }
-
         bool TryGetBooleanProperty(
             IPropertyValue propertyValue,
             bool defaultValue)
@@ -241,27 +231,20 @@ namespace TouchpadShield::Services
         }
     }
 
-    namespace
-    {
-        std::vector<std::wstring> const& GetContainerPropertyNames()
-        {
-            static const std::vector<std::wstring> names = {
-                L"System.ItemNameDisplay",
-                L"System.Devices.Connected",
-                L"System.Devices.Paired",
-                L"System.Devices.CategoryIds",
-                L"System.Devices.LocalMachine",
-                L"System.Devices.ModelId",
-            };
-            return names;
-        }
-    }
-
     std::vector<hstring> InputDeviceEnumerationService::BuildContainerPropertyNamesList()
     {
+        static const std::wstring kPropertyNames[] = {
+            L"System.ItemNameDisplay",
+            L"System.Devices.Connected",
+            L"System.Devices.Paired",
+            L"System.Devices.CategoryIds",
+            L"System.Devices.LocalMachine",
+            L"System.Devices.ModelId",
+        };
+
         std::vector<hstring> properties;
-        properties.reserve(GetContainerPropertyNames().size());
-        for (auto const& name : GetContainerPropertyNames())
+        properties.reserve(std::size(kPropertyNames));
+        for (auto const& name : kPropertyNames)
         {
             properties.emplace_back(name);
         }

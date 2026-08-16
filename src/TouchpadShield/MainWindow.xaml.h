@@ -108,7 +108,7 @@ namespace winrt::TouchpadShield::implementation
         void ScheduleInputDeviceRefresh();
         void RefreshInputDeviceListsUi();
         void AddMonitoredInputDevice(::TouchpadShield::Services::InputDeviceInfo const& device);
-        void RemoveMonitoredInputDevice(size_t index);
+        void RemoveMonitoredInputDevice(::TouchpadShield::Services::MonitoredInputDevice const& device);
         void SaveMonitoredInputDevices();
         void ApplyInputAutoTouchpadPolicyLocks();
         void EnforceAutoToggleDependencies();

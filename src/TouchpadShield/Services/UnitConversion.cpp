@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "Services/UnitConversion.h"
 
+#include <iomanip>
+#include <sstream>
+
 namespace TouchpadShield::Services
 {
     uint32_t MmToHimetric(double mm)

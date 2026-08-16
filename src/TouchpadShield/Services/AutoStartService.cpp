@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Services/AutoStartService.h"
+#include "Services/AppRegistryPaths.h"
 
 #include <comdef.h>
 #include <taskschd.h>
@@ -13,7 +14,6 @@ namespace TouchpadShield::Services
     {
         constexpr HRESULT kTaskNotFoundHresult = 0x8004130F;
         constexpr wchar_t kAutostartHandledSessionKey[] = L"AutostartHandledSessionId";
-        constexpr wchar_t kAppKeyPath[] = L"Software\\ZiMiaoWorkshop\\TouchpadShield";
 
         DWORD GetCurrentSessionId()
         {
@@ -25,7 +25,7 @@ namespace TouchpadShield::Services
         std::optional<DWORD> ReadHandledAutostartSessionId()
         {
             HKEY key = nullptr;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppKeyPath, 0, KEY_READ, &key) != ERROR_SUCCESS)
+            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_READ, &key) != ERROR_SUCCESS)
             {
                 return std::nullopt;
             }
@@ -56,7 +56,7 @@ namespace TouchpadShield::Services
             DWORD disposition = 0;
             if (RegCreateKeyExW(
                     HKEY_CURRENT_USER,
-                    kAppKeyPath,
+                    kAppRegistryKeyPath,
                     0,
                     nullptr,
                     0,
@@ -81,7 +81,7 @@ namespace TouchpadShield::Services
         void ClearHandledAutostartSessionId()
         {
             HKEY key = nullptr;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppKeyPath, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
+            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
             {
                 return;
             }
@@ -236,6 +236,111 @@ namespace TouchpadShield::Services
             }
 
             return SUCCEEDED(hr) || hr == kTaskNotFoundHresult;
+        }
+
+        std::wstring TryGetRegisteredTaskExePath()
+        {
+            const HRESULT coinit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            const bool needsUninit = SUCCEEDED(coinit) && coinit != S_FALSE && coinit != RPC_E_CHANGED_MODE;
+
+            ITaskService* service = nullptr;
+            ITaskFolder* rootFolder = nullptr;
+            IRegisteredTask* registeredTask = nullptr;
+            ITaskDefinition* taskDefinition = nullptr;
+            IActionCollection* actionCollection = nullptr;
+            IAction* action = nullptr;
+            IExecAction* execAction = nullptr;
+            std::wstring exePath;
+
+            HRESULT hr = CoCreateInstance(
+                CLSID_TaskScheduler,
+                nullptr,
+                CLSCTX_INPROC_SERVER,
+                IID_ITaskService,
+                reinterpret_cast<void**>(&service));
+            if (FAILED(hr))
+            {
+                if (needsUninit)
+                {
+                    CoUninitialize();
+                }
+                return L"";
+            }
+
+            hr = service->Connect(_variant_t(), _variant_t(), _variant_t(), _variant_t());
+            if (FAILED(hr))
+            {
+                service->Release();
+                if (needsUninit)
+                {
+                    CoUninitialize();
+                }
+                return L"";
+            }
+
+            hr = service->GetFolder(_bstr_t(L"\\"), &rootFolder);
+            if (FAILED(hr))
+            {
+                service->Release();
+                if (needsUninit)
+                {
+                    CoUninitialize();
+                }
+                return L"";
+            }
+
+            hr = rootFolder->GetTask(_bstr_t(AutoStartService::kScheduledTaskName), &registeredTask);
+            if (FAILED(hr) || !registeredTask)
+            {
+                rootFolder->Release();
+                service->Release();
+                if (needsUninit)
+                {
+                    CoUninitialize();
+                }
+                return L"";
+            }
+
+            hr = registeredTask->get_Definition(&taskDefinition);
+            if (SUCCEEDED(hr) && taskDefinition &&
+                SUCCEEDED(taskDefinition->get_Actions(&actionCollection)) &&
+                SUCCEEDED(actionCollection->get_Item(1, &action)) &&
+                SUCCEEDED(action->QueryInterface(IID_IExecAction, reinterpret_cast<void**>(&execAction))))
+            {
+                BSTR path = nullptr;
+                if (SUCCEEDED(execAction->get_Path(&path)) && path)
+                {
+                    exePath = path;
+                    SysFreeString(path);
+                }
+                execAction->Release();
+            }
+
+            if (action)
+            {
+                action->Release();
+            }
+            if (actionCollection)
+            {
+                actionCollection->Release();
+            }
+            if (taskDefinition)
+            {
+                taskDefinition->Release();
+            }
+            if (registeredTask)
+            {
+                registeredTask->Release();
+            }
+            rootFolder->Release();
+            service->Release();
+
+            if (needsUninit)
+            {
+                CoUninitialize();
+            }
+
+            return exePath;
         }
     }
 
@@ -485,6 +590,24 @@ namespace TouchpadShield::Services
 
         Logger::Info(L"AutoStart: logon scheduled task registered for " + userSam);
         return true;
+    }
+
+    bool AutoStartService::EnsureLogonTaskRegistered() const
+    {
+        const std::wstring exePath = ResolveExecutablePathUnquoted();
+        if (exePath.empty())
+        {
+            return false;
+        }
+
+        const std::wstring registeredPath = TryGetRegisteredTaskExePath();
+        if (_wcsicmp(registeredPath.c_str(), exePath.c_str()) == 0)
+        {
+            RemoveRunKey();
+            return true;
+        }
+
+        return SetEnabled(true);
     }
 
     bool AutoStartService::DeleteLogonTask() const
