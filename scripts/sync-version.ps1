@@ -1,6 +1,10 @@
 param(
 
-    [string]$VersionPropsPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "version\Version.props")
+    [string]$VersionPropsPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "version\Version.props"),
+
+    [ValidateSet("alpha", "beta", "release")]
+
+    [string]$VersionChannel = "release"
 
 )
 
@@ -30,7 +34,17 @@ $build = $versionGroup.TouchpadShieldBuildNumber
 
 $semVer = "$major.$minor.$patch"
 
-$display = "$semVer build $build"
+$displaySuffix = switch ($VersionChannel) {
+
+    "alpha" { " (alpha)" }
+
+    "beta" { " (beta)" }
+
+    default { "" }
+
+}
+
+$display = "$semVer build $build$displaySuffix"
 
 $buildInt = [int]$build
 

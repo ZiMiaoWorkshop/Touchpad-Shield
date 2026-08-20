@@ -11,7 +11,11 @@ alwaysApply: true
 
 - 语义化版本号（人工维护）：`MAJOR.MINOR.PATCH`，定义于 `version/Version.props`
 - 构建号（源码变动时自动递增）：4 位数字 `BUILD`，与版本号分开维护
-- 展示格式：`MAJOR.MINOR.PATCH buildBUILD`（例如 `1.0.0 build 0006`）
+- 展示格式：`MAJOR.MINOR.PATCH build BUILD`（例如 `1.0.0 build 0006`）
+- 渠道后缀（仅展示字符串，不影响 BUILD 数字与 assembly 版本）：
+  - `build-debug.ps1` → ` (alpha)`，例如 `1.1.0 build 0101 (alpha)`
+  - `build-beta.ps1` → ` (beta)`
+  - `build-release.ps1` → 无后缀
 - Windows 资源字符串（`.rc`）与 UI 使用展示格式；`app.manifest` 的 `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`
 
 ## 产物目录

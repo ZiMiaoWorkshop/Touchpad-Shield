@@ -17,7 +17,7 @@ if (-not (Test-Path $MakeNsis)) {
 
 Push-Location $Root
 try {
-    & (Join-Path $Root "scripts\build-debug.ps1") -Configuration $Configuration
+    & (Join-Path $Root "scripts\build-debug.ps1") -Configuration $Configuration -VersionChannel release
 
     if (-not (Test-Path $AppDir)) {
         throw "Release output not found: $AppDir"

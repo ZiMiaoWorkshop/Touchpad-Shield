@@ -412,8 +412,8 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 |----|------|
 | 语义化版本 | `MAJOR.MINOR.PATCH`，人工维护于 `version/Version.props` |
 | 构建号 | 4 位数字 `BUILD`，**源码变动时自动递增**（`scripts/bump-build.ps1`），不在 CI/CD 空跑时递增 |
-| UI 展示格式 | `MAJOR.MINOR.PATCH build BUILD`（例如 `1.0.0 build 0031`） |
-| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（例如 `1.0.0.31`） |
+| UI 展示格式 | `MAJOR.MINOR.PATCH build BUILD`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
+| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（例如 `1.0.0.31`）；**不含**渠道后缀 |
 | 同步 | `scripts/sync-version.ps1` 将版本同步至 NSIS 安装脚本 |
 
 **构建号指纹范围：** `src/`、`scripts/`、`installer/`、`config/`、`Picture/`、`TouchpadShield.sln`、`version/Version.props`、`version/Version.targets`（排除 `build-stamp.json`、`.build-pending.json` 及 NSIS/图标等衍生产物）。

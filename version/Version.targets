@@ -8,7 +8,17 @@
 
     <TouchpadShieldSemVer>$(TouchpadShieldMajorVersion).$(TouchpadShieldMinorVersion).$(TouchpadShieldPatchVersion)</TouchpadShieldSemVer>
 
-    <TouchpadShieldVersionDisplay>$(TouchpadShieldSemVer) build $(TouchpadShieldBuildNumber)</TouchpadShieldVersionDisplay>
+    <!-- 构建脚本传入：alpha / beta / release（release 无后缀） -->
+
+    <TouchpadShieldVersionChannel Condition="'$(TouchpadShieldVersionChannel)' == ''">release</TouchpadShieldVersionChannel>
+
+    <TouchpadShieldVersionDisplaySuffix Condition="'$(TouchpadShieldVersionChannel)' == 'alpha'"> (alpha)</TouchpadShieldVersionDisplaySuffix>
+
+    <TouchpadShieldVersionDisplaySuffix Condition="'$(TouchpadShieldVersionChannel)' == 'beta'"> (beta)</TouchpadShieldVersionDisplaySuffix>
+
+    <TouchpadShieldVersionDisplaySuffix Condition="'$(TouchpadShieldVersionChannel)' != 'alpha' AND '$(TouchpadShieldVersionChannel)' != 'beta'"></TouchpadShieldVersionDisplaySuffix>
+
+    <TouchpadShieldVersionDisplay>$(TouchpadShieldSemVer) build $(TouchpadShieldBuildNumber)$(TouchpadShieldVersionDisplaySuffix)</TouchpadShieldVersionDisplay>
 
     <TouchpadShieldBuildNumberInt>$([System.Int32]::Parse('$(TouchpadShieldBuildNumber)'))</TouchpadShieldBuildNumberInt>
 

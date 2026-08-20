@@ -1,6 +1,8 @@
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [ValidateSet("alpha", "beta", "release")]
+    [string]$VersionChannel = "alpha"
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,7 +28,7 @@ try {
 
     & (Join-Path $Root "scripts\generate-icons.ps1")
     & (Join-Path $Root "scripts\bump-build.ps1") -Phase Prepare
-    & (Join-Path $Root "scripts\sync-version.ps1")
+    & (Join-Path $Root "scripts\sync-version.ps1") -VersionChannel $VersionChannel
 
     $running = Get-Process -Name TouchpadShield -ErrorAction SilentlyContinue
     if ($running) {
@@ -41,7 +43,7 @@ try {
         Join-Path $AppOutputRoot "debug"
     }
 
-    & $MsBuild $Solution /p:Configuration=$Configuration /p:Platform=x64 /m
+    & $MsBuild $Solution /p:Configuration=$Configuration /p:Platform=x64 /p:TouchpadShieldVersionChannel=$VersionChannel /m
     if ($LASTEXITCODE -ne 0) {
         & (Join-Path $Root "scripts\bump-build.ps1") -Phase Revert
         throw "Build failed with exit code $LASTEXITCODE"
