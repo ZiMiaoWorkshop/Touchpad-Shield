@@ -76,8 +76,9 @@ try {
 "@
 
     $notesFile = Join-Path $env:TEMP "touchpad-shield-release-$Tag.md"
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($notesFile, $releaseNotes, $utf8NoBom)
+    # gh on Windows reads --notes-file using system ANSI unless UTF-8 BOM is present
+    $utf8WithBom = New-Object System.Text.UTF8Encoding $true
+    [System.IO.File]::WriteAllText($notesFile, $releaseNotes, $utf8WithBom)
 
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
