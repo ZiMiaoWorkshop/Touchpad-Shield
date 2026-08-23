@@ -1,7 +1,8 @@
 # Touchpad Shield 开发指导
 
-> 本文档基于当前代码库（**v1.1.0**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
-> 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)。  
+> 本文档基于当前代码库（**v1.1.1 build 0108**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
+> **当前 Release 基线（2026-08-24）：** `1.1.1 build 0108` · 安装包 `Touchpad Shield App/release/TouchpadShield-1.1.1-build0108-setup.exe`（`assemblyIdentity` **1.1.1.108**）。  
+> 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)（含 **§七附 v1.1.1 patch**）。  
 > 构建规范以 [`.cursor/rules/touchpad-shield-build.mdc`](../.cursor/rules/touchpad-shield-build.mdc) 为准；本文第四节与之保持一致并展开说明。
 
 ---
@@ -138,9 +139,22 @@ flowchart TB
 - 外层 Grid：`Padding="24,24,24,12"`（底部 12px，其余 24px），`RowSpacing="16"`，`ColumnSpacing="24"`；
 - 底部栏固定 `MinHeight="38"`，避免重启提示出现/消失时作者信息与版本号位置跳动。
 
-**窗口尺寸：**
-- 最小窗口 **1560×900**（逻辑像素），通过 XAML `MinWidth/MinHeight` 与 `WindowBoundsHelper` 的 `WM_GETMINMAXINFO` 双重约束；
-- 首次 `Activated` 时将客户区调整为 1560×900 逻辑尺寸。
+**窗口尺寸与位置（v1.1.1+，单一 Win32 路径）：**
+- 目标客户区 **1560×900 逻辑像素**（常量 `kDefaultLogicalClientWidth/Height`，`WindowBoundsSpec` 默认值与之相同）；
+- **禁止**在 XAML 或构造函数里对 `RootLayoutGrid` 设置 `MinWidth/MinHeight` 来约束窗口——布局层 Min 无法阻止用户把窗口框拖小，且与 Win32 最小尺寸重复；
+- **唯一入口**：`MainWindow::EnsureInitialWindowSize()` → `WindowBoundsHelper::ApplyInitialClientBounds()`，一次性完成：
+  1. `SetWindowSubclass` + `WM_GETMINMAXINFO`（按 DPI 换算最小可跟踪外框尺寸）；
+  2. `AppWindow.ResizeClient`（初始客户区 1560×900 逻辑像素）；
+  3. `CenterOnWorkArea`（仅 `AppWindow.Move` 居中，不再重复写入宽高）；
+- 调用时机：`CompletePlatformSetup()` 内首次调用 `EnsureInitialWindowSize()`；`LaunchToTrayOnly()` 在隐藏进托盘前亦经 `CompletePlatformSetup` 应用尺寸（自启路径 hwnd 就绪后执行，**勿**再延迟到 `ShowFromTray`）；
+- `ShowFromTray()` **不再**调用尺寸逻辑（尺寸在进托盘前已应用）；仅清除 `m_silentStartup` 并显示窗口；
+- **禁止**使用已废弃的 `AutostartHandledSessionId` 或「defer 尺寸到首次显示」模式。
+
+**自启与二次打开（窗口相关）：**
+- `--startup`：`PrepareSilentStartup()` **仅**设 `m_silentStartup=true`（不在此隐藏窗口）；`LaunchToTrayOnly()` → `CompletePlatformSetup()`（含尺寸）→ `HideToTray()`（`ShowWindow(SW_HIDE)`）；
+- 自启期间若窗口短暂激活，`Activated` 在 `m_silentStartup` 时额外调用 `AppWindow().Hide()` 作防闪窗兜底（与 `HideToTray` 分工不同，**勿**删其中一处后不做回归）；
+- `Activated` 在 `!m_platformSetupCompleted || !m_initialWindowSizeApplied` 时调用 `CompletePlatformSetup()`；
+- 二次打开 exe：`SingleInstanceService::ActivateExistingInstance()` **仅** `PostMessage(ShowMainWindow)` → `TrayIconService` 回调 `ShowFromTray()`；**禁止**回退为裸 `ShowWindow`（会绕过尺寸/最小约束且与 `m_silentStartup` 冲突）。
 
 ---
 
@@ -161,9 +175,9 @@ flowchart TB
 
 （6）启用自动启停时强制并锁定「开机自启动」「点击 X 缩小到系统托盘」；**仅开启开机自启动**时亦强制并锁定「常驻系统托盘」（避免 `--startup` 静默启动后无窗口且无托盘）；托盘在自启、常驻托盘或自动启停任一开启时创建。
 
-（7）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`，**各 Windows 用户独立 HKCU**）：`InputAutoTouchpadEnabled`、`MonitoredInputDevices`（JSON：`containerId` + `label` + 可选 `matchKey`）、`RunAtStartup`、`MinimizeToTrayOnClose`、`AutostartHandledSessionId`（REG_DWORD，同会话内 `--startup` 已处理标记，内部用）。**正式版不包含**早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）的读写或迁移；若注册表残留此类键，应用忽略。
+（7）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`，**各 Windows 用户独立 HKCU**）：`InputAutoTouchpadEnabled`、`MonitoredInputDevices`（JSON：`containerId` + `label` + 可选 `matchKey`）、`RunAtStartup`、`MinimizeToTrayOnClose`。启动时会 best-effort 删除已废弃的内部键 `AutostartHandledSessionId`（若存在）。**正式版不包含**早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）的读写或迁移；若注册表残留此类键，应用忽略。
 
-（8）自启：通过任务计划程序注册 `\TouchpadShield`（**当前用户登录时**触发、触发器与 Principal 绑定当前用户 SAM 名、`RunLevel=Highest`、执行 `"<exe路径>" --startup`）；同时移除无效的 HKCU Run 遗留项。带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与输入设备监听（`PrepareSilentStartup` 隐藏窗口，不调用 `Activate()`）。`--startup` 成功进托盘后写入 `AutostartHandledSessionId`；同 Windows 会话内再次 `--startup` 直接退出（快速切换回已登录用户无新登录动作，通常不会再次触发任务）。注销再登录 → 新 SessionId → 可再次自启。各用户仅受本用户 `RunAtStartup` 设置约束。
+（8）自启：通过任务计划程序注册 `\TouchpadShield`（**当前用户登录时**触发、触发器与 Principal 绑定当前用户 SAM 名、`RunLevel=Highest`、执行 `"<exe路径>" --startup`）；同时移除无效的 HKCU Run 遗留项。带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与输入设备监听（`PrepareSilentStartup` 设静默标志，`LaunchToTrayOnly` 完成平台初始化并隐藏，不调用主窗口 `Activate()`）。**v1.1.1 起**同 Session 内是否重复自启由 `Local\TouchpadShield_SingleInstance_v2` Mutex 判定：无实例则静默进托盘；已有实例则 `--startup` 进程静默退出（不激活窗口）；用户手动启动 exe 则经 `PostMessage` 触发 `ShowFromTray()` 显示已有实例。各用户仅受本用户 `RunAtStartup` 设置约束。
 
 ---
 
@@ -171,7 +185,15 @@ flowchart TB
 
 （1）软件启动时必须请求 UAC 权限（`app.manifest` 设置 `requireAdministrator`），以正常写入 HKLM 下的屏蔽区域与超级屏蔽区域数值。
 
-（2）启动时显示 **StartupWindow**（ProgressRing +「程序正在启动」），后台完成 `MainWindow.InitializeAsync()` → `LoadAllData()` 后关闭 StartupWindow 并激活主窗口。
+（1b）**App 层单实例闸门（`App.xaml.cpp::LaunchAsync`）**：进程进入 UI 后首先 `SingleInstanceService::TryAcquire()` 获取 Session 级 Mutex（`Local\TouchpadShield_SingleInstance_v2`）。若 Mutex 已被占用：
+- 带 `--startup` 参数：**直接** `Application::Exit()`，不调用 `ActivateExistingInstance()`（避免重复自启进程激活窗口）；
+- 手动启动（无 `--startup`）：`ActivateExistingInstance()` → `PostMessage(ShowMainWindow)` → 已有实例的 `ShowFromTray()`，然后第二进程 `Exit()`。
+
+Mutex 获取成功后，创建 `MainWindow` 并按下列手动 / 自启路径继续。
+
+（2）**手动启动**：显示 **StartupWindow**（ProgressRing +「程序正在启动」），后台完成 `MainWindow.InitializeAsync()`（含 `LoadAllData()`、`LoadInputDeviceSettingsUi()`、设备列表刷新）后关闭 StartupWindow，并由 `App` 调用 `m_window.Activate()`。`CompletePlatformSetup()` 在 `MainWindow` 的 `Activated` 回调中、当 `!m_platformSetupCompleted || !m_initialWindowSizeApplied` 时调用（含 `EnsureInitialWindowSize` 与平台服务）；若当时 hwnd 尚未就绪，尺寸会在后续 `Activated` 或（自启路径）`LaunchToTrayOnly` 中重试。
+
+（2b）**`--startup` 自启**：不创建 StartupWindow，不调用主窗口 `Activate()`；`PrepareSilentStartup()` 设静默标志，`InitializeAsync` 完成后调用 `LaunchToTrayOnly()`（`CompletePlatformSetup` → `HideToTray`）。
 
 （3）启动时应检查注册表中是否有缺失的屏蔽区域以及超级屏蔽区域键值（HKLM），若有则自动补全并将补全值设为 0。补全完成后读取对应数据并反显在控件内，并绘制示意图。
 
@@ -295,7 +317,7 @@ flowchart TB
 
 （3）右侧固定显示：
 - `Designed and Built by ZiMiaoWorkshop`
-- 版本号：`v{MAJOR.MINOR.PATCH build BUILD}`（例如 `v1.0.0 build 0031`）
+- 版本号：`v{MAJOR.MINOR.PATCH build BUILD}`（当前 Release 示例：`v1.1.1 build 0108`）
 
 ---
 
@@ -359,14 +381,20 @@ Beta / Release 均调用 `build-debug.ps1`，因此安装包内 config 与项目
 | `SuperCurtainTop/Bottom/Left/Right` | `APP_SuperCurtainMm` / `APP_SetSuperCurtainMm` |
 
 **应用本地设置（HKCU）**  
-路径：`Software\ZiMiaoWorkshop\TouchpadShield`
+路径：`Software\ZiMiaoWorkshop\TouchpadShield`（完整键表与 §3.3.1（7）、§6.1（4）一致）
 
-| 键值 | 内容 |
-|------|------|
-| `TouchpadWidthMm` / `TouchpadHeightMm` | 触控板尺寸（REG_SZ，两位小数 mm） |
-| `ClickSensitivityMode` | `FreeAdjust` 或 `MatchWindowsSettings` |
+| 键值 | 类型 / 内容 |
+|------|-------------|
+| `TouchpadWidthMm` / `TouchpadHeightMm` | REG_SZ，触控板物理尺寸（两位小数 mm） |
+| `ClickSensitivityMode` | REG_SZ：`FreeAdjust` 或 `MatchWindowsSettings` |
+| `InputAutoTouchpadEnabled` | REG_DWORD，外接输入设备自动启停触控板（0/1） |
+| `MonitoredInputDevices` | REG_SZ，JSON 数组（`containerId` + `label` + 可选 `matchKey`） |
+| `RunAtStartup` | REG_DWORD，登录时自启（计划任务，每用户独立） |
+| `MinimizeToTrayOnClose` | REG_DWORD，关闭时缩小到托盘（0/1） |
 
-接口命名原则：针对 PTP 调优指南涉及的注册表键值，接口名称尽量直接体现键值名称。
+（已废弃）`AutostartHandledSessionId` — v1.1.0 内部 REG_DWORD；v1.1.1 起不再读写，启动时 best-effort 删除。
+
+接口命名原则：针对 PTP 调优指南涉及的注册表键值，接口名称尽量直接体现键值名称；应用本地设置读写见 `LocalSettingsService`。
 
 ---
 
@@ -410,10 +438,11 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 | 项 | 规则 |
 |----|------|
+| **当前基线** | **1.1.1 build 0108**（`version/Version.props`；Release 无渠道后缀） |
 | 语义化版本 | `MAJOR.MINOR.PATCH`，人工维护于 `version/Version.props` |
 | 构建号 | 4 位数字 `BUILD`，**源码变动时自动递增**（`scripts/bump-build.ps1`），不在 CI/CD 空跑时递增 |
 | UI 展示格式 | `MAJOR.MINOR.PATCH build BUILD`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
-| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（例如 `1.0.0.31`）；**不含**渠道后缀 |
+| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（当前 **1.1.1.108**）；**不含**渠道后缀 |
 | 同步 | `scripts/sync-version.ps1` 将版本同步至 NSIS 安装脚本 |
 
 **构建号指纹范围：** `src/`、`scripts/`、`installer/`、`config/`、`Picture/`、`TouchpadShield.sln`、`version/Version.props`、`version/Version.targets`（排除 `build-stamp.json`、`.build-pending.json` 及 NSIS/图标等衍生产物）。
@@ -426,7 +455,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 |------|------|
 | `Touchpad Shield App/debug/` | Debug 可执行文件及依赖（含 `config/`、`Assets/`），启用 debug 日志 |
 | `Touchpad Shield App/beta/` | NSIS 打包的 Debug 版安装包（`*-beta-setup.exe`） |
-| `Touchpad Shield App/release/` | 正式发布 NSIS 安装包（`*-setup.exe`）及 `release/app/` Release 应用文件 |
+| `Touchpad Shield App/release/` | 正式发布 NSIS 安装包（`*-setup.exe`）及 `release/app/` Release 应用文件；当前：`TouchpadShield-1.1.1-build0108-setup.exe` |
 
 ### 5.3 编译策略
 
@@ -497,7 +526,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | 显示缩放 | `Services/DisplayScaleService.*` | mm/DIP 估算 |
 | 示意图 | `Services/TouchpadDiagramRenderer.*` | Canvas 绘制与重叠边检测 |
 | 单位换算 | `Services/UnitConversion.*` | mm ↔ Himetric、尺寸比较 |
-| 窗口边界 | `Services/WindowBoundsHelper.*` | 最小尺寸、初始客户区、DPI 换算 |
+| 窗口边界 | `Services/WindowBoundsHelper.*` | `ApplyInitialClientBounds`：最小尺寸子类 + 初始客户区 + 居中；**勿**拆成多处或 XAML Min 重复约束 |
 | 窗口图标 | `Services/WindowIconHelper.*` | 从 Assets 或嵌入资源加载 ICO |
 | 日志 | `Services/Logger.*` | Debug 文件日志 |
 | 触控板状态 | `Services/TouchpadStatusService.*` | 只读 `Status\Enabled` |
@@ -506,7 +535,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | 输入设备监控 | `Services/InputDeviceMonitorService.*` | PnpObjectWatcher、连接状态 reconcile |
 | 托盘 | `Services/TrayIconService.*` | Shell_NotifyIcon、菜单 |
 | 自启 | `Services/AutoStartService.*` | 任务计划程序登录触发 + 清理 HKCU Run |
-| 单实例 | `Services/SingleInstanceService.*` | Mutex + 激活已有窗口 |
+| 单实例 | `Services/SingleInstanceService.*` | Session 级 Mutex；二次打开仅 `PostMessage(ShowMainWindow)` → `ShowFromTray`，无 `ShowWindow` 回退 |
 | XAML 本地类型 | `XamlLocalTypes.h` | 仅供生成的 `XamlTypeInfo.g.cpp` 强制 include；含 pch + 窗口头，配合 `PrecompiledHeader=NotUsing` |
 
 ### 6.1 代码维护约定（已确认，勿再提议重构）
@@ -524,10 +553,17 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 **WindowBoundsHelper 与 TrayIconService 的 `SetWindowSubclass`**：
 
-- `WindowBoundsHelper::SubclassProc`：仅处理 `WM_GETMINMAXINFO`（最小窗口尺寸 + DPI）
-- `TrayIconService::SubclassProc`：处理 `WM_TRAYICON`（托盘点击与菜单）
+- `WindowBoundsHelper::SubclassProc`：仅处理 `WM_GETMINMAXINFO`（最小窗口尺寸 + DPI）；尺寸应用入口为 **`ApplyInitialClientBounds`**（勿再暴露分离的 Apply + ResizeClient）
+- `TrayIconService::SubclassProc`：处理 `WM_TRAYICON` 与 **`TouchpadShield.ShowMainWindow`** 注册消息（二次 exe 启动 → `ShowFromTray`）
 
 二者仅共享 Win32 subclass 样板，**消息语义完全不同**；抽公共 helper 收益低、回归风险高，**保持两处独立实现**。
+
+**窗口尺寸反模式（v1.1.1 已移除，勿恢复）**：
+
+- `RootLayoutGrid` 构造函数设置 `MinWidth/MinHeight` 1560×900
+- `AutostartHandledSessionId` / `ShouldSkipStartupLaunch` / defer 尺寸到 `ShowFromTray`
+- `ActivateExistingInstance` 裸 `ShowWindow` 回退
+- `LaunchToTrayOnly` 内重复 `m_trayIcon.Create`（托盘由 `UpdateTrayIconState` 统一创建）
 
 **TouchpadParametersService 独立模块**：
 
@@ -539,7 +575,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 - **`Assets/TouchpadShieldLogo.png` 的 CopyAssets**：源 PNG 供 `scripts/generate-icons.ps1` 生成 `.ico`；运行时 UI 使用 `TouchpadShield.ico`，**不要删除** vcxproj 中的复制步骤，除非图标生成流程一并调整。
 - **WebView2 包依赖**：WinAppSDK C++/WinRT 构建链需要，**不可移除**。
 
-#### （3）已完成的清理（截至 v1.1.0，勿重复劳动）
+#### （3）已完成的清理（截至 v1.1.1，勿重复劳动）
 
 | 项 | 说明 |
 |----|------|
@@ -548,17 +584,22 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | pch 瘦身 | 移除未用 WinRT 头、`MainWindow`/`StartupWindow` 头链；`XamlTypeInfo.g.cpp` 经 `XamlLocalTypes.h` + `/FI` 单独 include |
 | PnP 属性向量 | `InputDeviceEnumerationService::BuildContainerPropertyNamesList()` 供枚举与监控共用 |
 | 设备列表 UI 行 | `BuildInputDeviceListRow()` 供监控/未监控列表共用 |
-| `AutoStartService` | 任务计划程序 COM API 注册登录任务；`RemoveRunKey` 清理遗留 Run 项 |
+| `AutoStartService` | 任务计划程序 COM API 注册登录任务；`RemoveRunKey` 清理遗留 Run 项；启动时清理废弃 `AutostartHandledSessionId` |
+| `SingleInstanceService` | Session 级 Mutex（`Local\TouchpadShield_SingleInstance_v2`）；二次打开 `PostMessage` → `ShowFromTray` |
+| `WindowBoundsHelper` | `ApplyInitialClientBounds` 统一初始尺寸/最小尺寸/居中；无 XAML 重复 Min |
 
-#### （4）持久化键命名（v1.1.0+）
+#### （4）持久化键命名（v1.1.1+，完整表见 §4.2）
 
 | 键名 | 用途 |
 |------|------|
+| `TouchpadWidthMm` / `TouchpadHeightMm` | 触控板物理尺寸（mm） |
+| `ClickSensitivityMode` | 单击灵敏度控制方式 |
 | `InputAutoTouchpadEnabled` | 触控板自动启停开关 |
 | `MonitoredInputDevices` | 监控设备 JSON（`containerId` + `label` + 可选 `matchKey`） |
 | `RunAtStartup` | 开机自启动（计划任务，每用户独立） |
 | `MinimizeToTrayOnClose` | 关闭时缩小到托盘 |
-| `AutostartHandledSessionId` | 同会话 `--startup` 已处理标记（REG_DWORD，内部） |
+
+（已废弃，启动时自动删除若存在）`AutostartHandledSessionId` — v1.1.0 内部键，v1.1.1 起不再使用。
 
 早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）**未在正式版发布**；正式版不读取、不迁移、不删除，应用忽略残留键。
 
@@ -568,7 +609,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 ## 七、实现状态与后续规划
 
-### 7.1 当前已实现（v1.1.0）
+### 7.1 当前已实现（v1.1.1 build 0108）
 
 - WinUI 3 原生风格 UI、PerMonitorV2 缩放、1560×900 最小窗口、主功能区左/中/右三栏；
 - 灵敏度四件套（含单击灵敏度吸附方案）；
@@ -578,8 +619,9 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 - UAC 提权、Curtain 键补全、StartupWindow 启动态；
 - SPI 优先的 HKCU 读写、RegistryUserContext；
 - **外接输入设备自动启停触控板**（Device Container + PnpObjectWatcher、F24 切换、延迟确认、`MonitoredInputDevices` JSON）；
-- **系统托盘**、**开机自启**、**单实例**、自动启停开启时强制托盘+自启；
-- 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；
+- **系统托盘**、**计划任务登录自启**、**Session 级单实例**、自动启停/自启开启时强制托盘；
+- **v1.1.1 patch**：移除 `AutostartHandledSessionId`；自启重复判定改 Session Mutex；`ApplyInitialClientBounds` 统一窗口初始尺寸/最小尺寸/居中；二次打开 exe 经 `PostMessage` → `ShowFromTray`；
+- 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；**Release 0108** 已打包（`scripts/build-release.ps1`）；
 - 本地 Git 版本管理（`main` 主干）。
 
 ### 7.2 尚未实现（后续可规划）
@@ -594,8 +636,8 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 | 文档 | 用途 |
 |------|------|
-| `Touchpad_Shield_开发指导.md`（本文档） | 实现细节、界面需求、架构、构建方案、**代码维护约定（§6.1）** |
-| `Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md` | **v1.0.0 → v1.1.0** 功能与界面变更梳理 |
+| `Touchpad_Shield_开发指导.md`（本文档） | 实现细节、界面需求、架构、构建方案、**代码维护约定（§6.1）**、**v1.1.1 build 0108 窗口/自启行为（§3.3、§3.4）** |
+| `Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md` | **v1.0.0 → v1.1.0** 功能变更 + **§七附 v1.1.1 patch** |
 | `README.md` | 项目概览、快速构建、对外说明 |
 | `LICENSE` | Apache License 2.0（Copyright 2026 ZiMiaoWorkshop） |
 | `.cursor/rules/touchpad-shield-build.mdc` | Cursor 构建规则（精简版） |

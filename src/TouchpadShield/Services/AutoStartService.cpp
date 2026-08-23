@@ -14,7 +14,7 @@ namespace TouchpadShield::Services
     namespace
     {
         constexpr HRESULT kTaskNotFoundHresult = 0x8004130F;
-        constexpr wchar_t kAutostartHandledSessionKey[] = L"AutostartHandledSessionId";
+        constexpr wchar_t kLegacyAutostartHandledSessionKey[] = L"AutostartHandledSessionId";
 
         struct RegisteredLogonTaskInfo
         {
@@ -114,81 +114,6 @@ namespace TouchpadShield::Services
             ITaskService* m_service{ nullptr };
             ITaskFolder* m_rootFolder{ nullptr };
         };
-
-        DWORD GetCurrentSessionId()
-        {
-            DWORD sessionId = 0;
-            ProcessIdToSessionId(GetCurrentProcessId(), &sessionId);
-            return sessionId;
-        }
-
-        std::optional<DWORD> ReadHandledAutostartSessionId()
-        {
-            HKEY key = nullptr;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_READ, &key) != ERROR_SUCCESS)
-            {
-                return std::nullopt;
-            }
-
-            DWORD value = 0;
-            DWORD size = sizeof(value);
-            DWORD type = REG_DWORD;
-            const LSTATUS status = RegQueryValueExW(
-                key,
-                kAutostartHandledSessionKey,
-                nullptr,
-                &type,
-                reinterpret_cast<LPBYTE>(&value),
-                &size);
-            RegCloseKey(key);
-
-            if (status != ERROR_SUCCESS || type != REG_DWORD)
-            {
-                return std::nullopt;
-            }
-
-            return value;
-        }
-
-        void WriteHandledAutostartSessionId(DWORD sessionId)
-        {
-            HKEY key = nullptr;
-            DWORD disposition = 0;
-            if (RegCreateKeyExW(
-                    HKEY_CURRENT_USER,
-                    kAppRegistryKeyPath,
-                    0,
-                    nullptr,
-                    0,
-                    KEY_SET_VALUE,
-                    nullptr,
-                    &key,
-                    &disposition) != ERROR_SUCCESS)
-            {
-                return;
-            }
-
-            RegSetValueExW(
-                key,
-                kAutostartHandledSessionKey,
-                0,
-                REG_DWORD,
-                reinterpret_cast<const BYTE*>(&sessionId),
-                sizeof(sessionId));
-            RegCloseKey(key);
-        }
-
-        void ClearHandledAutostartSessionId()
-        {
-            HKEY key = nullptr;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
-            {
-                return;
-            }
-
-            RegDeleteValueW(key, kAutostartHandledSessionKey);
-            RegCloseKey(key);
-        }
 
         std::wstring GetCurrentUserSamName()
         {
@@ -444,21 +369,16 @@ namespace TouchpadShield::Services
         }
     }
 
-    bool AutoStartService::ShouldSkipStartupLaunch()
+    void AutoStartService::ClearLegacyAutostartHandledSessionId()
     {
-        if (!IsStartupLaunch())
+        HKEY key = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, kAppRegistryKeyPath, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS)
         {
-            return false;
+            return;
         }
 
-        const DWORD sessionId = GetCurrentSessionId();
-        const auto handledSessionId = ReadHandledAutostartSessionId();
-        return handledSessionId.has_value() && handledSessionId.value() == sessionId;
-    }
-
-    void AutoStartService::MarkStartupLaunchHandled()
-    {
-        WriteHandledAutostartSessionId(GetCurrentSessionId());
+        RegDeleteValueW(key, kLegacyAutostartHandledSessionKey);
+        RegCloseKey(key);
     }
 
     std::wstring AutoStartService::ResolveExecutablePathUnquoted() const
@@ -683,7 +603,7 @@ namespace TouchpadShield::Services
             return taskOk;
         }
 
-        ClearHandledAutostartSessionId();
+        ClearLegacyAutostartHandledSessionId();
         DeleteLogonTask();
         return RemoveRunKey();
     }

@@ -4,7 +4,9 @@
 
 设计与开发：**[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**
 
-**当前版本：** 1.1.0 build 0103 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**当前版本：** 1.1.1 build 0108 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+
+**v1.1.1 变更：** 修复重启后登录自启被误跳过；单实例 Mutex 改为 Session 级（`Local\`）；移除 `AutostartHandledSessionId`；统一 `ApplyInitialClientBounds` 窗口尺寸/最小约束；二次打开 exe 经 `ShowFromTray` 显示已有实例（修复窗口过小问题）。
 
 ---
 
@@ -12,7 +14,7 @@
 
 | 资源 | 说明 |
 |------|------|
-| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（`TouchpadShield-*-setup.exe`） |
+| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（当前本地构建：`TouchpadShield-1.1.1-build0108-setup.exe`） |
 | [`TouchpadPhysicalSize.csv`](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 笔记本触控板物理尺寸预设（仓库内见 [`config/`](config/)） |
 
 > **说明：** 安装包使用自签名 Authenticode 证书（发布者 **ZiMiaoWorkshop**）。首次安装时 Windows SmartScreen 可能提示「未知发布者」。
@@ -59,9 +61,8 @@
 | `MonitoredInputDevices` | JSON：`containerId`、`label`、可选 `matchKey` |
 | `RunAtStartup` | 登录时运行（计划任务） |
 | `MinimizeToTrayOnClose` | 关闭窗口时最小化到托盘 |
-| `AutostartHandledSessionId` | DWORD — 已处理 `--startup` 的会话 ID（内部） |
 
-**登录自启：** 计划任务 `\TouchpadShield`，登录触发器绑定当前用户，`RunLevel=Highest`，参数 `"<exe>" --startup`。旧版 HKCU Run 项会被移除。各 Windows 用户设置与任务独立。`--startup` 成功后记录当前会话 ID，同一会话内重复启动会被忽略（已登录用户切回时通常不会再次触发登录任务）。
+**登录自启：** 计划任务 `\TouchpadShield`，登录触发器绑定当前用户，`RunLevel=Highest`，参数 `"<exe>" --startup`。旧版 HKCU Run 项会被移除。各 Windows 用户设置与任务独立。同 Session 内若已有实例运行，重复 `--startup` 静默退出；手动再次打开 exe 则激活已有窗口。单实例 Mutex 为 `Local\TouchpadShield_SingleInstance_v2`（每 Session 独立，多用户可各跑一份）。
 
 **PnP 监听（有意设计）：** 应用进程运行期间，即使关闭「启用自动切换」，`PnpObjectWatcher` 仍保持注册；仅 F24 切换与 reconcile 受 `InputAutoTouchpadEnabled` 控制，插拔仍会刷新设备列表以便编辑监控列表。关闭自动切换时，若触控板仍被关着，会发送 F24 尝试恢复。
 
@@ -170,7 +171,7 @@ Touchpad Shield/
 |------|------|
 | 语义化版本 `MAJOR.MINOR.PATCH` | 人工维护 — `version/Version.props` |
 | 构建号 `BUILD`（4 位） | 源码指纹变动时自动递增 — `scripts/bump-build.ps1` |
-| 界面展示 | `1.1.0 build 0103`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
+| 界面展示 | `1.1.1 build 0108`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
 
 仅文档变更（如 README）**不会**递增构建号。
 
@@ -180,8 +181,8 @@ Touchpad Shield/
 
 | 文档 | 说明 |
 |------|------|
-| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | 开发指导 — UI 规范、架构、构建规则、**§6.1 维护约定** |
-| [`PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md) | **v1.0.0 → v1.1.0** 功能与界面变更说明 |
+| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | 开发指导 — UI 规范、架构、构建规则、**§6.1 维护约定**（**v1.1.1 build 0108**） |
+| [`PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md) | **v1.0.0 → v1.1.0** 功能变更 + **§七附 v1.1.1 patch** |
 | [`.cursor/rules/touchpad-shield-build.mdc`](.cursor/rules/touchpad-shield-build.mdc) | 自动化工具构建规范 |
 | [`.cursor/rules/touchpad-shield-code.mdc`](.cursor/rules/touchpad-shield-code.mdc) | 代码维护 — 勿重复提议的重构项 |
 

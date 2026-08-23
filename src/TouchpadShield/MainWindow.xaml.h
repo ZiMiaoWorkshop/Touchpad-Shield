@@ -77,7 +77,7 @@ namespace winrt::TouchpadShield::implementation
         bool m_curtainRestartPending{ false };
         bool m_csvFileExists{ false };
         bool m_initialWindowSizeApplied{ false };
-        bool m_deferInitialWindowSize{ false };
+        bool m_platformSetupCompleted{ false };
         bool m_silentStartup{ false };
         bool m_forceExit{ false };
         bool m_inputDeviceSettingsLoading{ false };
@@ -85,7 +85,7 @@ namespace winrt::TouchpadShield::implementation
 
         void InitializeWindow();
         void ApplyWindowIcon();
-        void ApplyInitialWindowSize();
+        void EnsureInitialWindowSize();
         void InitializeComboBoxes();
         void LoadAllData();
         void RefreshDiagram();

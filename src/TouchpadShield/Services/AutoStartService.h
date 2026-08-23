@@ -12,8 +12,7 @@ namespace TouchpadShield::Services
         bool SetEnabled(bool enabled) const;
         bool EnsureLogonTaskRegistered() const;
         static bool IsStartupLaunch();
-        static bool ShouldSkipStartupLaunch();
-        static void MarkStartupLaunchHandled();
+        static void ClearLegacyAutostartHandledSessionId();
 
     private:
         std::wstring ResolveExecutablePathUnquoted() const;

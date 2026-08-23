@@ -1,22 +1,23 @@
-# Touchpad Shield 版本变更说明（v1.0.0 → v1.1.0）
+# Touchpad Shield 版本变更说明（v1.0.0 → v1.1.0 / v1.1.1）
 
 > **基准文档：** v1.0.0 最终发行版 `README.md`、`Touchpad_Shield_开发指导.md`（build 0031 / 0032）  
-> **当前版本：** v1.1.0 build 0081（`version/Version.props`）  
-> **撰写日期：** 2026-07-22
+> **当前版本：** **v1.1.1 build 0108**（`version/Version.props`；Release 安装包 `TouchpadShield-1.1.1-build0108-setup.exe`，`assemblyIdentity` **1.1.1.108**）  
+> **撰写日期：** 2026-07-22（v1.1.0 正文）；**2026-08-24** 更新 v1.1.1 patch 与 Release 0108 基线
 
-本文档梳理自 v1.0.0 正式版至当前 v1.1.0 的**用户可见功能**、**界面调整**、**架构与持久化变更**，供产品、开发与发布说明引用。
+本文档梳理自 v1.0.0 正式版至当前 **v1.1.1** 的**用户可见功能**、**界面调整**、**架构与持久化变更**，供产品、开发与发布说明引用。v1.1.0 为主体功能增量；**v1.1.1** 为自启/单实例/窗口尺寸 patch（见 **§七附**）。
 
 ---
 
 ## 一、版本概览
 
-| 项目 | v1.0.0 | v1.1.0（当前） |
-|------|--------|----------------|
-| 语义化版本 | 1.0.0 | **1.1.0** |
-| 产品定位 | PTP 调优 + 示意图 + CSV 机型尺寸 | 在 v1.0.0 基础上增加**外接输入设备自动启停触控板**及**后台常驻能力** |
-| 主窗口布局 | 左右 **两栏**（4:6） | 左 / 中 / 右 **三栏**（41:55:34） |
-| 最小窗口 | 1280×900（逻辑像素） | **1560×900**（逻辑像素） |
-| 右栏内容 | 无（机型/尺寸/示意图占满中部+右部） | 独立第三栏：**触控板自动启停** |
+| 项目 | v1.0.0 | v1.1.0 | v1.1.1（当前 patch） |
+|------|--------|--------|----------------------|
+| 语义化版本 | 1.0.0 | **1.1.0** | **1.1.1** |
+| 构建号（Release） | 0031–0032 | 0081 等 | **0108** |
+| 产品定位 | PTP 调优 + 示意图 + CSV 机型尺寸 | 在 v1.0.0 基础上增加**外接输入设备自动启停触控板**及**后台常驻能力** | v1.1.0 能力 + **自启/单实例/窗口尺寸** 修复 |
+| 主窗口布局 | 左右 **两栏**（4:6） | 左 / 中 / 右 **三栏**（41:55:34） | 同 v1.1.0 |
+| 最小窗口 | 1280×900（逻辑像素） | **1560×900**（逻辑像素） | 同 v1.1.0；**统一 Win32 路径**约束（见 §七附） |
+| 右栏内容 | 无（机型/尺寸/示意图占满中部+右部） | 独立第三栏：**触控板自动启停** | 同 v1.1.0 |
 
 v1.0.0 已有的 PTP 灵敏度、Curtains / Super Curtains、BIOS 匹配、CSV、示意图、UAC、StartupWindow、构建流水线等**均保留**；v1.1.0 为**功能扩展版本**，非重写。
 
@@ -59,19 +60,19 @@ v1.0.0 已有的 PTP 灵敏度、Curtains / Super Curtains、BIOS 匹配、CSV�
 | **静默启动** | `--startup` 时不显示 StartupWindow / 主窗口，仅初始化托盘与设备监听（仍 UAC） |
 | **与自动启停联动** | 开启自动启停时**强制**开启自启动且 UI 锁定 |
 | **每用户独立** | 各 Windows 用户 HKCU 设置与计划任务互不影响 |
-| **同会话防重复** | `--startup` 成功后写入 `AutostartHandledSessionId`；快速切换回已登录用户无新登录，通常不再次自启 |
+| **同会话防重复** | v1.1.0：`AutostartHandledSessionId`（Session ID）；**v1.1.1 起**：Session 级 Mutex（`Local\TouchpadShield_SingleInstance_v2`），`--startup` 重复时静默退出 |
 
 ### 2.4 单实例
 
 | 能力 | 说明 |
 |------|------|
-| **Mutex 单实例** | 重复启动时激活已有主窗口（或已最小化到托盘的实例），不启动第二进程 |
+| **Mutex 单实例** | 重复启动时激活已有主窗口（或已最小化到托盘的实例），不启动第二进程；**v1.1.1 起**二次打开经 `PostMessage` → `ShowFromTray()`，不再裸 `ShowWindow` |
 
 ### 2.5 启动体验
 
 | 能力 | 说明 |
 |------|------|
-| **窗口居中** | 首次激活时在工作区内居中显示（`WindowBoundsHelper::CenterOnWorkArea`） |
+| **窗口居中与尺寸** | v1.1.0：首次激活在工作区居中；**v1.1.1 起**统一 `ApplyInitialClientBounds`（1560×900 初始客户区 + 最小尺寸 + 居中） |
 
 ---
 
@@ -283,7 +284,7 @@ flowchart TD
 | `MonitoredInputDevices` | 监控设备 JSON（`containerId` + `label` + 可选 `matchKey`） |
 | `RunAtStartup` | 登录时自启动（计划任务） |
 | `MinimizeToTrayOnClose` | 关闭时缩小到托盘 |
-| `AutostartHandledSessionId` | 同会话 `--startup` 已处理（REG_DWORD） |
+| ~~`AutostartHandledSessionId`~~ | v1.1.0 内部键；**v1.1.1 起已废弃**（启动时删除） |
 
 ### 4.3 早期内部开发键（未正式发布）
 
@@ -303,11 +304,11 @@ v1.0.0 开发指导模块表未包含以下组件；v1.1.0 新增：
 | `InputDeviceMonitorService` | `PnpObjectWatcher`、连接状态 reconcile |
 | `InputDeviceTypes` | ContainerId、监控设备结构、匹配逻辑 |
 | `TrayIconService` | 系统托盘图标与菜单 |
-| `AutoStartService` | 任务计划程序 COM API 注册登录任务（每用户 SAM）；`RemoveRunKey` 清理遗留 Run 项；`AutostartHandledSessionId` 同会话防重复 |
-| `SingleInstanceService` | 单实例 Mutex + 激活已有窗口 |
+| `AutoStartService` | 任务计划程序 COM API 注册登录任务（每用户 SAM）；`RemoveRunKey` 清理遗留 Run 项；v1.1.1 起清理废弃 `AutostartHandledSessionId` |
+| `SingleInstanceService` | v1.1.0：`Global\` Mutex；**v1.1.1 起**：`Local\TouchpadShield_SingleInstance_v2`（每 Session 单实例，多用户互不干扰）；二次打开仅 `PostMessage` → `ShowFromTray` |
 | `XamlLocalTypes.h` | 构建用：为 `XamlTypeInfo.g.cpp` 单独注入窗口头文件 |
 
-`WindowBoundsHelper` 在 v1.0.0 已有最小尺寸逻辑；v1.1.0 增加**启动居中**。
+`WindowBoundsHelper` 在 v1.0.0 已有最小尺寸逻辑；v1.1.0 增加**启动居中**；**v1.1.1 起**统一为 `ApplyInitialClientBounds`（初始客户区 + 最小尺寸子类 + 居中，单一 Win32 路径）。
 
 ---
 
@@ -334,8 +335,23 @@ v1.0.0 开发指导模块表未包含以下组件；v1.1.0 新增：
 | **pch / 编译** | pch 瘦身；`XamlLocalTypes.h` + `/FI` 供生成代码单独 include |
 | **代码清理** | 删除 `ShouldMinimizeToTrayOnClose` 转发；提取 `BuildContainerPropertyNamesList`、`BuildInputDeviceListRow` 等 |
 | **维护约定** | `PRD/Touchpad_Shield_开发指导.md` §6.1、`.cursor/rules/touchpad-shield-code.mdc` 记录有意不 refactor 的项 |
-| **开发指导** | 布局、窗口尺寸、§3.3.1 右栏、持久化键、模块表已更新至 v1.1.0 |
-| **README** | 增加 External input / tray / startup 章节及 PTP 表中的触控板总开关行 |
+| **开发指导** | 布局、窗口尺寸、§3.3.1 右栏、持久化键、模块表已更新至 **v1.1.1 build 0108**（含 §6.1 窗口/自启反模式） |
+| **README** | 增加外接输入 / 托盘 / 自启章节；**v1.1.1** 版本行与 patch 摘要（**build 0108**） |
+
+---
+
+## 七附、v1.1.1 patch（自启、单实例与窗口尺寸）
+
+| 项 | 说明 |
+|----|------|
+| **版本** | **1.1.1 build 0108**（patch；`assemblyIdentity` **1.1.1.108**） |
+| **重启后不自启** | 移除 `AutostartHandledSessionId`（Session ID 与重启后 Session 复用导致 `--startup` 误跳过） |
+| **多用户** | 单实例 Mutex 由 `Global\TouchpadShield_SingleInstance_v1` 改为 `Local\TouchpadShield_SingleInstance_v2`，每 Session 独立 |
+| **`--startup` 重复** | Mutex 已占用时静默 Exit；手动启动 exe 仍激活已有窗口 |
+| **升级清理** | 启动时 best-effort 删除遗留 `AutostartHandledSessionId` 注册表值 |
+| **窗口尺寸统一** | `EnsureInitialWindowSize()` → `WindowBoundsHelper::ApplyInitialClientBounds()`：1560×900 初始客户区、WM_GETMINMAXINFO 最小尺寸、工作区居中；自启路径在 `CompletePlatformSetup` / `LaunchToTrayOnly` 应用，**勿**延迟到 `ShowFromTray` |
+| **二次打开 exe** | `ActivateExistingInstance()` 仅 `PostMessage(ShowMainWindow)` → `TrayIconService` → `ShowFromTray()`；修复窗口可缩至极小、尺寸未应用等问题（禁止裸 `ShowWindow` 回退） |
+| **已移除反模式** | `AutostartHandledSessionId` / `ShouldSkipStartupLaunch` / XAML `RootLayoutGrid` Min 1560×900 / `LaunchToTrayOnly` 内重复托盘 Create 等 |
 
 ---
 
@@ -356,9 +372,9 @@ v1.1.0 新增规划项：
 
 | 文档 | 说明 |
 |------|------|
-| [`Touchpad_Shield_开发指导.md`](Touchpad_Shield_开发指导.md) | 当前实现规格（v1.1.0） |
-| [`../README.md`](../README.md) | 对外功能概览与构建说明 |
+| [`Touchpad_Shield_开发指导.md`](Touchpad_Shield_开发指导.md) | 当前实现规格（**v1.1.1 build 0108**） |
+| [`../README.md`](../README.md) | 对外功能概览与构建说明（**1.1.1 build 0108**） |
 | [`diagrams/`](diagrams/) | 二附流程图 PNG 与 Mermaid 源文件（`.mmd`） |
 | v1.0.0 基准 | 用户提供的最终发行版 README / 开发指导（build 0031–0032） |
 
-发布 GitHub Release 时，可将本文 **第二节～第四节** 摘录为用户向更新说明；技术向流程说明见 **二附**。
+发布 GitHub Release 时，可将本文 **第二节～第四节** 与 **§七附** 摘录为用户向更新说明；技术向流程说明见 **二附**。

@@ -14,7 +14,51 @@ namespace TouchpadShield::Services
         return MulDiv(logical, dpi, USER_DEFAULT_SCREEN_DPI);
     }
 
-    void WindowBoundsHelper::Apply(HWND hwnd, WindowBoundsSpec const& spec)
+    void WindowBoundsHelper::ComputePhysicalClientSize(
+        HWND hwnd,
+        WindowBoundsSpec const& spec,
+        int& width,
+        int& height)
+    {
+        width = 0;
+        height = 0;
+        if (!hwnd)
+        {
+            return;
+        }
+
+        const int dpi = GetDpiForWindow(hwnd);
+        width = ScaleLogicalToPhysical(spec.logicalClientWidth, dpi);
+        height = ScaleLogicalToPhysical(spec.logicalClientHeight, dpi);
+    }
+
+    void WindowBoundsHelper::ComputeOuterTrackSize(
+        HWND hwnd,
+        WindowBoundsSpec const& spec,
+        int& width,
+        int& height)
+    {
+        width = 0;
+        height = 0;
+        if (!hwnd)
+        {
+            return;
+        }
+
+        int clientWidth = 0;
+        int clientHeight = 0;
+        ComputePhysicalClientSize(hwnd, spec, clientWidth, clientHeight);
+
+        RECT rect{ 0, 0, clientWidth, clientHeight };
+        const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
+        const DWORD exStyle = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+        AdjustWindowRectEx(&rect, style, FALSE, exStyle);
+
+        width = rect.right - rect.left;
+        height = rect.bottom - rect.top;
+    }
+
+    void WindowBoundsHelper::ApplyInitialClientBounds(HWND hwnd, WindowBoundsSpec const& spec)
     {
         if (!hwnd)
         {
@@ -23,18 +67,10 @@ namespace TouchpadShield::Services
 
         m_spec = spec;
         SetWindowSubclass(hwnd, SubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
-    }
 
-    void WindowBoundsHelper::ResizeClientToLogicalSize(HWND hwnd) const
-    {
-        if (!hwnd)
-        {
-            return;
-        }
-
-        const int dpi = GetDpiForWindow(hwnd);
-        const int clientWidth = ScaleLogicalToPhysical(m_spec.logicalClientWidth, dpi);
-        const int clientHeight = ScaleLogicalToPhysical(m_spec.logicalClientHeight, dpi);
+        int clientWidth = 0;
+        int clientHeight = 0;
+        ComputePhysicalClientSize(hwnd, m_spec, clientWidth, clientHeight);
 
         const auto windowId = winrt::Microsoft::UI::GetWindowIdFromWindow(hwnd);
         if (auto appWindow = winrt::Microsoft::UI::Windowing::AppWindow::GetFromWindowId(windowId))
@@ -43,6 +79,8 @@ namespace TouchpadShield::Services
                 static_cast<int32_t>(clientWidth),
                 static_cast<int32_t>(clientHeight) });
         }
+
+        CenterOnWorkArea(hwnd);
     }
 
     void WindowBoundsHelper::CenterOnWorkArea(HWND hwnd)
@@ -76,7 +114,7 @@ namespace TouchpadShield::Services
             y = work.Y;
         }
 
-        appWindow.MoveAndResize({ x, y, size.Width, size.Height });
+        appWindow.Move({ x, y });
     }
 
     LRESULT CALLBACK WindowBoundsHelper::SubclassProc(
@@ -90,18 +128,13 @@ namespace TouchpadShield::Services
         auto* self = reinterpret_cast<WindowBoundsHelper*>(refData);
         if (msg == WM_GETMINMAXINFO && self)
         {
-            const int dpi = GetDpiForWindow(hwnd);
-            const int clientWidth = ScaleLogicalToPhysical(self->m_spec.logicalClientWidth, dpi);
-            const int clientHeight = ScaleLogicalToPhysical(self->m_spec.logicalClientHeight, dpi);
-
-            RECT rect{ 0, 0, clientWidth, clientHeight };
-            const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
-            const DWORD exStyle = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
-            AdjustWindowRectEx(&rect, style, FALSE, exStyle);
+            int outerWidth = 0;
+            int outerHeight = 0;
+            ComputeOuterTrackSize(hwnd, self->m_spec, outerWidth, outerHeight);
 
             auto* minMaxInfo = reinterpret_cast<MINMAXINFO*>(lParam);
-            minMaxInfo->ptMinTrackSize.x = rect.right - rect.left;
-            minMaxInfo->ptMinTrackSize.y = rect.bottom - rect.top;
+            minMaxInfo->ptMinTrackSize.x = outerWidth;
+            minMaxInfo->ptMinTrackSize.y = outerHeight;
         }
 
         return DefSubclassProc(hwnd, msg, wParam, lParam);

@@ -8,9 +8,10 @@ namespace TouchpadShield::Services
         bool TryAcquire();
         void Release();
         bool ActivateExistingInstance();
+        static UINT ActivateMainWindowMessage();
 
     private:
-        static constexpr wchar_t kMutexName[] = L"Global\\TouchpadShield_SingleInstance_v1";
+        static constexpr wchar_t kMutexName[] = L"Local\\TouchpadShield_SingleInstance_v2";
 
         void* m_mutexHandle{ nullptr };
     };

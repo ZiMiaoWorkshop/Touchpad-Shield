@@ -19,6 +19,16 @@ alwaysApply: true
 4. **删除 `Assets/TouchpadShieldLogo.png` 的 CopyAssets**——PNG 供图标生成脚本使用。
 5. **移除 WebView2 依赖**——WinAppSDK C++/WinRT 构建需要。
 
+## 禁止恢复的反模式（v1.1.1 已移除）
+
+除非用户**明确新需求**，不得建议或实施：
+
+1. **`RootLayoutGrid` 构造函数 / XAML 设置 `MinWidth/MinHeight` 1560×900**——窗口最小尺寸仅由 `WindowBoundsHelper::ApplyInitialClientBounds` + `WM_GETMINMAXINFO` 约束。
+2. **`AutostartHandledSessionId` / `ShouldSkipStartupLaunch` / defer 尺寸到 `ShowFromTray`**——自启重复判定用 Session Mutex；尺寸在 `CompletePlatformSetup` → `EnsureInitialWindowSize` 应用。
+3. **`ActivateExistingInstance` 裸 `ShowWindow` 回退**——二次打开必须 `PostMessage(ShowMainWindow)` → `ShowFromTray`。
+4. **`WindowBoundsHelper` 分离的 `Apply` + `ResizeClientToLogicalSize` 对外 API**——统一为 `ApplyInitialClientBounds`。
+5. **`LaunchToTrayOnly` 内重复 `m_trayIcon.Create`**——托盘由 `UpdateTrayIconState` 统一创建。
+
 ## 已完成清理（勿重复）
 
 - HID 源文件已移除；注册表键为 `InputAutoTouchpadEnabled` / `MonitoredInputDevices`；**无** HID 实验键迁移
@@ -26,6 +36,7 @@ alwaysApply: true
 - pch 已瘦身；`XamlLocalTypes.h` 仅服务 `XamlTypeInfo.g.cpp`
 - `BuildContainerPropertyNamesList()`、`BuildInputDeviceListRow()` 已提取共用
 - `ShouldMinimizeToTrayOnClose` 已删除
+- v1.1.1：`Local\TouchpadShield_SingleInstance_v2`、计划任务自启、`ApplyInitialClientBounds`、遗留 `AutostartHandledSessionId` 启动清理
 
 ## 需求变更
 

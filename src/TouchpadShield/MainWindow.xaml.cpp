@@ -97,8 +97,6 @@ namespace winrt::TouchpadShield::implementation
     MainWindow::MainWindow()
     {
         InitializeComponent();
-        RootLayoutGrid().MinWidth(AppServices::kDefaultLogicalClientWidth);
-        RootLayoutGrid().MinHeight(AppServices::kDefaultLogicalClientHeight);
         InitializeWindow();
         InitializeComboBoxes();
     }
@@ -137,7 +135,7 @@ namespace winrt::TouchpadShield::implementation
             }
 
             ApplyWindowIcon();
-            if (!m_initialWindowSizeApplied)
+            if (!m_platformSetupCompleted || !m_initialWindowSizeApplied)
             {
                 CompletePlatformSetup();
             }
@@ -147,28 +145,35 @@ namespace winrt::TouchpadShield::implementation
     void MainWindow::PrepareSilentStartup()
     {
         m_silentStartup = true;
-        m_deferInitialWindowSize = true;
-
-        try
-        {
-            AppWindow().Hide();
-        }
-        catch (...)
-        {
-        }
     }
 
-    void MainWindow::CompletePlatformSetup()
+    void MainWindow::EnsureInitialWindowSize()
     {
         if (m_initialWindowSizeApplied)
         {
             return;
         }
 
-        if (!m_deferInitialWindowSize)
+        const HWND hwnd = GetWindowHandle();
+        if (!hwnd)
         {
-            ApplyInitialWindowSize();
+            return;
         }
+
+        m_windowBounds.ApplyInitialClientBounds(hwnd);
+        m_initialWindowSizeApplied = true;
+    }
+
+    void MainWindow::CompletePlatformSetup()
+    {
+        EnsureInitialWindowSize();
+
+        if (m_platformSetupCompleted)
+        {
+            return;
+        }
+
+        AppServices::AutoStartService::ClearLegacyAutostartHandledSessionId();
 
         SetupWindowCloseBehavior();
         m_dispatcherQueue = DispatcherQueue::GetForCurrentThread();
@@ -178,52 +183,13 @@ namespace winrt::TouchpadShield::implementation
         {
             m_autoStart.EnsureLogonTaskRegistered();
         }
-        m_initialWindowSizeApplied = true;
+        m_platformSetupCompleted = true;
     }
 
     void MainWindow::LaunchToTrayOnly()
     {
-        if (HWND hwnd = GetWindowHandle())
-        {
-            ShowWindow(hwnd, SW_HIDE);
-        }
-
-        try
-        {
-            AppWindow().Hide();
-        }
-        catch (...)
-        {
-        }
-
-        if (!m_initialWindowSizeApplied)
-        {
-            CompletePlatformSetup();
-        }
-
-        const HWND hwnd = GetWindowHandle();
-        if (hwnd && !m_trayIcon.IsCreated())
-        {
-            m_trayIcon.Create(hwnd);
-        }
-
+        CompletePlatformSetup();
         HideToTray();
-    }
-
-    void MainWindow::ApplyInitialWindowSize()
-    {
-        const HWND hwnd = GetWindowHandle();
-        if (!hwnd)
-        {
-            return;
-        }
-
-        AppServices::WindowBoundsSpec bounds{
-            AppServices::kDefaultLogicalClientWidth,
-            AppServices::kDefaultLogicalClientHeight };
-        m_windowBounds.Apply(hwnd, bounds);
-        m_windowBounds.ResizeClientToLogicalSize(hwnd);
-        AppServices::WindowBoundsHelper::CenterOnWorkArea(hwnd);
     }
 
     void MainWindow::ApplyWindowIcon()
@@ -934,11 +900,7 @@ namespace winrt::TouchpadShield::implementation
 
     void MainWindow::ShowFromTray()
     {
-        if (m_deferInitialWindowSize)
-        {
-            ApplyInitialWindowSize();
-            m_deferInitialWindowSize = false;
-        }
+        m_silentStartup = false;
 
         Activate();
         if (const HWND hwnd = GetWindowHandle())

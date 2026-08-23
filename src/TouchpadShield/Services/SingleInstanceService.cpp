@@ -54,6 +54,12 @@ namespace TouchpadShield::Services
         }
     }
 
+    UINT SingleInstanceService::ActivateMainWindowMessage()
+    {
+        static const UINT message = RegisterWindowMessageW(L"TouchpadShield.ShowMainWindow");
+        return message;
+    }
+
     bool SingleInstanceService::ActivateExistingInstance()
     {
         HWND target = nullptr;
@@ -63,13 +69,12 @@ namespace TouchpadShield::Services
             return false;
         }
 
-        if (IsIconic(target))
+        const UINT showMessage = ActivateMainWindowMessage();
+        if (showMessage == 0)
         {
-            ShowWindow(target, SW_RESTORE);
+            return false;
         }
 
-        SetForegroundWindow(target);
-        ShowWindow(target, SW_SHOW);
-        return true;
+        return PostMessageW(target, showMessage, 0, 0) != FALSE;
     }
 }

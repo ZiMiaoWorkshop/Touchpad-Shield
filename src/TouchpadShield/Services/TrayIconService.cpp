@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Services/TrayIconService.h"
+#include "Services/SingleInstanceService.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
@@ -144,6 +145,13 @@ namespace TouchpadShield::Services
                 ShowContextMenu();
                 return true;
             }
+        }
+
+        const UINT activateMessage = SingleInstanceService::ActivateMainWindowMessage();
+        if (activateMessage != 0 && msg == activateMessage && m_showWindow)
+        {
+            m_showWindow();
+            return true;
         }
 
         return false;

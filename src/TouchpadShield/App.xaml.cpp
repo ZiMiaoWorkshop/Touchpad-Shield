@@ -27,21 +27,18 @@ namespace winrt::TouchpadShield::implementation
 
     Windows::Foundation::IAsyncAction App::LaunchAsync()
     {
-        if (::TouchpadShield::Services::AutoStartService::ShouldSkipStartupLaunch())
-        {
-            Logger::Info(L"Startup launch skipped: autostart already handled for this Windows session");
-            Application::Current().Exit();
-            co_return;
-        }
+        const bool startupLaunch = ::TouchpadShield::Services::AutoStartService::IsStartupLaunch();
 
         if (!g_singleInstance.TryAcquire())
         {
-            g_singleInstance.ActivateExistingInstance();
+            if (!startupLaunch)
+            {
+                g_singleInstance.ActivateExistingInstance();
+            }
+
             Application::Current().Exit();
             co_return;
         }
-
-        const bool startupLaunch = ::TouchpadShield::Services::AutoStartService::IsStartupLaunch();
 
         winrt::TouchpadShield::StartupWindow startupWindow{ nullptr };
         if (!startupLaunch)
@@ -75,7 +72,6 @@ namespace winrt::TouchpadShield::implementation
         {
             Logger::Info(L"Startup launch: hiding main window to tray");
             winrt::get_self<implementation::MainWindow>(m_window)->LaunchToTrayOnly();
-            ::TouchpadShield::Services::AutoStartService::MarkStartupLaunchHandled();
         }
         else
         {

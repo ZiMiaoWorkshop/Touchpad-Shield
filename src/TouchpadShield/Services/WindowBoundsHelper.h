@@ -12,16 +12,18 @@ namespace TouchpadShield::Services
         int logicalClientWidth{ kDefaultLogicalClientWidth };
         int logicalClientHeight{ kDefaultLogicalClientHeight };
     };
+
     class WindowBoundsHelper
     {
     public:
-        void Apply(HWND hwnd, WindowBoundsSpec const& spec);
-        void ResizeClientToLogicalSize(HWND hwnd) const;
+        void ApplyInitialClientBounds(HWND hwnd, WindowBoundsSpec const& spec = {});
         static void CenterOnWorkArea(HWND hwnd);
 
     private:
         WindowBoundsSpec m_spec{};
         static int ScaleLogicalToPhysical(int logical, int dpi);
+        static void ComputePhysicalClientSize(HWND hwnd, WindowBoundsSpec const& spec, int& width, int& height);
+        static void ComputeOuterTrackSize(HWND hwnd, WindowBoundsSpec const& spec, int& width, int& height);
         static LRESULT CALLBACK SubclassProc(
             HWND hwnd,
             UINT msg,
