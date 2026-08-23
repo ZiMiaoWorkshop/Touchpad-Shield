@@ -14,7 +14,7 @@
 
 | 资源 | 说明 |
 |------|------|
-| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（当前本地构建：`TouchpadShield-1.1.1-build0108-setup.exe`） |
+| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（`TouchpadShield-1.1.1-build0108-setup.exe`） |
 | [`TouchpadPhysicalSize.csv`](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 笔记本触控板物理尺寸预设（仓库内见 [`config/`](config/)） |
 
 > **说明：** 安装包使用自签名 Authenticode 证书（发布者 **ZiMiaoWorkshop**）。首次安装时 Windows SmartScreen 可能提示「未知发布者」。
@@ -33,14 +33,14 @@
 - **机型尺寸匹配** — 通过 `TouchpadPhysicalSize.csv` 与 BIOS 信息匹配；可应用预设或导出自定义条目
 - **即时生效 vs 重启** — HKCU 项经 `SystemParametersInfo` 即时生效；HKLM Curtain 变更需重启
 - **原生 Windows UI** — WinUI 3、跟随系统主题、PerMonitorV2 DPI、中英双语标签
-- **外接输入设备自动切换触控板** — 监控所选输入设备容器（与 **设置 → 蓝牙和其他设备 → 设备 → 输入** 同源）；任一监控设备在线时关闭内置触控板，全部离线后恢复（经 `Status\Enabled` + `Ctrl+Win+F24`）
-- **系统托盘与开机自启** — 可选关闭时最小化到托盘、登录时运行；启用输入设备监控时会强制开启上述两项
+- **外接输入设备自动启停触控板** — 监控所选输入设备容器（与 **设置 → 蓝牙和其他设备 → 设备 → 输入** 同源）；任一监控设备在线时关闭内置触控板，全部离线后恢复（经 `Status\Enabled` + `Ctrl+Win+F24`）
+- **系统托盘与开机自启** — 可选关闭时最小化到托盘、登录时运行；启用自动启停时会强制开启上述两项
 
 ---
 
-## 外接输入设备与触控板开关（v1.1.0）
+## 外接输入设备与触控板开关
 
-此功能与上文 PTP 调参键**独立**，切换的是 Windows 触控板总开关：
+此功能与上文 PTP 调参键**独立**，切换的是 Windows 触控板总开关（自 **v1.1.0** 引入；自启/单实例行为以 **v1.1.1** 为准）：
 
 | 项目 | 说明 |
 |------|------|
@@ -51,20 +51,30 @@
 | 匹配键 | 设备容器 ID（`ContainerId`） |
 | 持久化 | `Software\ZiMiaoWorkshop\TouchpadShield`（见下表） |
 
-启用输入设备监控时，**登录时运行**与**关闭时最小化到托盘**会被强制开启，以保证后台能处理插拔事件。
+启用触控板自动启停时，**登录时运行**与**关闭时最小化到托盘**会被强制开启，以保证后台能处理插拔事件。
 
-**注册表键（每 Windows 用户，HKCU）：**
+**注册表键（每 Windows 用户，HKCU `Software\ZiMiaoWorkshop\TouchpadShield`）：**
 
 | 键名 | 用途 |
 |------|------|
-| `InputAutoTouchpadEnabled` | 触控板自动切换开/关 |
+| `InputAutoTouchpadEnabled` | 触控板自动启停开/关 |
 | `MonitoredInputDevices` | JSON：`containerId`、`label`、可选 `matchKey` |
 | `RunAtStartup` | 登录时运行（计划任务） |
 | `MinimizeToTrayOnClose` | 关闭窗口时最小化到托盘 |
 
-**登录自启：** 计划任务 `\TouchpadShield`，登录触发器绑定当前用户，`RunLevel=Highest`，参数 `"<exe>" --startup`。旧版 HKCU Run 项会被移除。各 Windows 用户设置与任务独立。同 Session 内若已有实例运行，重复 `--startup` 静默退出；手动再次打开 exe 则激活已有窗口。单实例 Mutex 为 `Local\TouchpadShield_SingleInstance_v2`（每 Session 独立，多用户可各跑一份）。
+（已废弃）`AutostartHandledSessionId` — v1.1.0 内部键；**v1.1.1 起**不再读写，启动时 best-effort 删除。
 
-**PnP 监听（有意设计）：** 应用进程运行期间，即使关闭「启用自动切换」，`PnpObjectWatcher` 仍保持注册；仅 F24 切换与 reconcile 受 `InputAutoTouchpadEnabled` 控制，插拔仍会刷新设备列表以便编辑监控列表。关闭自动切换时，若触控板仍被关着，会发送 F24 尝试恢复。
+**登录自启与单实例：** 计划任务 `\TouchpadShield`，登录触发器绑定当前用户 SAM、`RunLevel=Highest`，参数 `"<exe>" --startup`；同时移除遗留 HKCU Run 项。各 Windows 用户设置与任务独立。
+
+| 场景 | 行为 |
+|------|------|
+| 首次 `--startup`（本 Session 无实例） | 静默进托盘，初始化设备监听 |
+| 重复 `--startup`（本 Session 已有实例） | 第二进程静默退出 |
+| 手动再次打开 exe | `PostMessage(ShowMainWindow)` → `ShowFromTray()` 显示已有实例（不启动第二进程） |
+
+单实例 Mutex：`Local\TouchpadShield_SingleInstance_v2`（每 Session 独立；多用户各 Session 可各跑一份）。
+
+**PnP 监听（有意设计）：** 应用进程运行期间，即使关闭「启用自动启停」，`PnpObjectWatcher` 仍保持注册；仅 F24 切换与 reconcile 受 `InputAutoTouchpadEnabled` 控制，插拔仍会刷新设备列表以便编辑监控列表。关闭自动启停时，若触控板仍被关着，会发送 F24 尝试恢复。
 
 ---
 
