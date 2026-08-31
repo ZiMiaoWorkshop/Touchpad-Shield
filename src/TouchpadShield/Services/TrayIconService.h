@@ -7,8 +7,15 @@ namespace TouchpadShield::Services
     class TrayIconService
     {
     public:
+        static constexpr UINT kCmdOpenMainWindow = 1;
+        static constexpr UINT kCmdExit = 2;
+        static constexpr UINT kCmdEnableAuto = 101;
+        static constexpr UINT kCmdDisableAutoEnableTouchpad = 102;
+        static constexpr UINT kCmdDisableAutoDisableTouchpad = 103;
+
         using ShowWindowCallback = std::function<void()>;
         using ExitCallback = std::function<void()>;
+        using AutoToggleCommandCallback = std::function<void(UINT)>;
 
         bool Create(HWND hwnd);
         void Destroy();
@@ -16,6 +23,7 @@ namespace TouchpadShield::Services
 
         void SetShowWindowCallback(ShowWindowCallback callback);
         void SetExitCallback(ExitCallback callback);
+        void SetAutoToggleCommandCallback(AutoToggleCommandCallback callback);
 
         bool HandleWindowMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -39,5 +47,6 @@ namespace TouchpadShield::Services
         bool m_created{ false };
         ShowWindowCallback m_showWindow{};
         ExitCallback m_exit{};
+        AutoToggleCommandCallback m_autoToggleCommand{};
     };
 }

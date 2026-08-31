@@ -4,7 +4,9 @@
 
 设计与开发：**[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**
 
-**当前版本：** 1.1.1 build 0108 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**当前版本：** 1.1.2 build 0109 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+
+**v1.1.2 变更：** 托盘右键增加三条自动启停指令（开启 / 关闭并开触控板 / 关闭并关触控板）；主 UI Toggle 不变，逻辑抽到 `ExecuteAutoToggleCommand`。
 
 **v1.1.1 变更：** 修复重启后登录自启被误跳过；单实例 Mutex 改为 Session 级（`Local\`）；移除 `AutostartHandledSessionId`；统一 `ApplyInitialClientBounds` 窗口尺寸/最小约束；二次打开 exe 经 `ShowFromTray` 显示已有实例（修复窗口过小问题）。
 
@@ -74,7 +76,15 @@
 
 单实例 Mutex：`Local\TouchpadShield_SingleInstance_v2`（每 Session 独立；多用户各 Session 可各跑一份）。
 
-**PnP 监听（有意设计）：** 应用进程运行期间，即使关闭「启用自动启停」，`PnpObjectWatcher` 仍保持注册；仅 F24 切换与 reconcile 受 `InputAutoTouchpadEnabled` 控制，插拔仍会刷新设备列表以便编辑监控列表。关闭自动启停时，若触控板仍被关着，会发送 F24 尝试恢复。
+**托盘右键指令（v1.1.2+）：** 纯指令菜单（无 check），与主 UI 共用 `ExecuteAutoToggleCommand`：
+
+| 菜单 | 行为 |
+|------|------|
+| 开启触控板自动启停 | 开启自动启停并 reconcile |
+| 关闭触控板自动启停 + 开启触控板 | 关闭自动启停并尝试开启触控板（同主 Toggle 关） |
+| 关闭触控板自动启停 + 关闭触控板 | 关闭自动启停并尝试关闭触控板（仅托盘） |
+
+**PnP 监听（有意设计）：** 应用进程运行期间，即使关闭「启用自动启停」，`PnpObjectWatcher` 仍保持注册；仅 F24 切换与 reconcile 受 `InputAutoTouchpadEnabled` 控制，插拔仍会刷新设备列表以便编辑监控列表。主 UI 关闭自动启停或托盘「+ 开启触控板」时，若触控板仍被关着，会发送 F24 尝试恢复。
 
 ---
 
@@ -181,7 +191,7 @@ Touchpad Shield/
 |------|------|
 | 语义化版本 `MAJOR.MINOR.PATCH` | 人工维护 — `version/Version.props` |
 | 构建号 `BUILD`（4 位） | 源码指纹变动时自动递增 — `scripts/bump-build.ps1` |
-| 界面展示 | `1.1.1 build 0108`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
+| 界面展示 | `1.1.2 build 0109`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
 
 仅文档变更（如 README）**不会**递增构建号。
 

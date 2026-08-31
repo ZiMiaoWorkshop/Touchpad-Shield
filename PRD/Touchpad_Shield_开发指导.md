@@ -1,8 +1,8 @@
 # Touchpad Shield 开发指导
 
-> 本文档基于当前代码库（**v1.1.1 build 0108**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
+> 本文档基于当前代码库（**v1.1.2 build 0109**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
 > **当前 Release 基线（2026-08-24）：** `1.1.1 build 0108` · 安装包 `Touchpad Shield App/release/TouchpadShield-1.1.1-build0108-setup.exe`（`assemblyIdentity` **1.1.1.108**）。  
-> 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)（含 **§七附 v1.1.1 patch**）。  
+> 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)（含 **§七附 v1.1.1 patch**、**§七附2 v1.1.2**）。  
 > 构建规范以 [`.cursor/rules/touchpad-shield-build.mdc`](../.cursor/rules/touchpad-shield-build.mdc) 为准；本文第四节与之保持一致并展开说明。
 
 ---
@@ -178,6 +178,16 @@ flowchart TB
 （7）持久化键（`Software\ZiMiaoWorkshop\TouchpadShield`，**各 Windows 用户独立 HKCU**）：`InputAutoTouchpadEnabled`、`MonitoredInputDevices`（JSON：`containerId` + `label` + 可选 `matchKey`）、`RunAtStartup`、`MinimizeToTrayOnClose`。启动时会 best-effort 删除已废弃的内部键 `AutostartHandledSessionId`（若存在）。**正式版不包含**早期内部 HID 实验键（`HidAutoTouchpadEnabled`、`MonitoredHidDevices`）的读写或迁移；若注册表残留此类键，应用忽略。
 
 （8）自启：通过任务计划程序注册 `\TouchpadShield`（**当前用户登录时**触发、触发器与 Principal 绑定当前用户 SAM 名、`RunLevel=Highest`、执行 `"<exe路径>" --startup`）；同时移除无效的 HKCU Run 遗留项。带 `--startup` 启动时不显示 StartupWindow / 主窗口，仅初始化托盘与输入设备监听（`PrepareSilentStartup` 设静默标志，`LaunchToTrayOnly` 完成平台初始化并隐藏，不调用主窗口 `Activate()`）。**v1.1.1 起**同 Session 内是否重复自启由 `Local\TouchpadShield_SingleInstance_v2` Mutex 判定：无实例则静默进托盘；已有实例则 `--startup` 进程静默退出（不激活窗口）；用户手动启动 exe 则经 `PostMessage` 触发 `ShowFromTray()` 显示已有实例。各用户仅受本用户 `RunAtStartup` 设置约束。
+
+（9）**托盘右键三指令（v1.1.2+）**：`TrayIconService` 菜单为纯指令（无 check、不读 `Status\Enabled` 做菜单态）。三条均经 `MainWindow::ExecuteAutoToggleCommand` 与主 UI Toggle 共用逻辑；触控板开/关复用现有 `TouchpadToggleService::RequestEnabledAsync`（执行时读 `Status\Enabled`，已达标则 skip）：
+
+| 菜单文案 | 行为 |
+|----------|------|
+| 开启触控板自动启停 | `InputAutoTouchpadEnabled=true` → 强制自启+托盘 → reconcile |
+| 关闭触控板自动启停 + 开启触控板 | `InputAutoTouchpadEnabled=false` → `RequestEnabledAsync(true)`（同主 Toggle **关**） |
+| 关闭触控板自动启停 + 关闭触控板 | `InputAutoTouchpadEnabled=false` → `RequestEnabledAsync(false)`（**仅托盘**） |
+
+分隔线下方仍为「打开主窗口」「退出」。主 UI「启用自动启停」Toggle **开/关** 分别等价于前两条指令；第三条仅托盘提供。
 
 ---
 
@@ -533,7 +543,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 | 触控板切换 | `Services/TouchpadToggleService.*` | SendInput F24 + 延迟确认与补偿 |
 | 输入设备枚举 | `Services/InputDeviceEnumerationService.*` | PnpObject DeviceContainer、Input 类别过滤 |
 | 输入设备监控 | `Services/InputDeviceMonitorService.*` | PnpObjectWatcher、连接状态 reconcile |
-| 托盘 | `Services/TrayIconService.*` | Shell_NotifyIcon、菜单 |
+| 托盘 | `Services/TrayIconService.*` | Shell_NotifyIcon、右键菜单（v1.1.2+ 含自动启停三指令） |
 | 自启 | `Services/AutoStartService.*` | 任务计划程序登录触发 + 清理 HKCU Run |
 | 单实例 | `Services/SingleInstanceService.*` | Session 级 Mutex；二次打开仅 `PostMessage(ShowMainWindow)` → `ShowFromTray`，无 `ShowWindow` 回退 |
 | XAML 本地类型 | `XamlLocalTypes.h` | 仅供生成的 `XamlTypeInfo.g.cpp` 强制 include；含 pch + 窗口头，配合 `PrecompiledHeader=NotUsing` |
@@ -609,7 +619,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 ## 七、实现状态与后续规划
 
-### 7.1 当前已实现（v1.1.1 build 0108）
+### 7.1 当前已实现（v1.1.2 build 0109）
 
 - WinUI 3 原生风格 UI、PerMonitorV2 缩放、1560×900 最小窗口、主功能区左/中/右三栏；
 - 灵敏度四件套（含单击灵敏度吸附方案）；
@@ -620,6 +630,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 - SPI 优先的 HKCU 读写、RegistryUserContext；
 - **外接输入设备自动启停触控板**（Device Container + PnpObjectWatcher、F24 切换、延迟确认、`MonitoredInputDevices` JSON）；
 - **系统托盘**、**计划任务登录自启**、**Session 级单实例**、自动启停/自启开启时强制托盘；
+- **v1.1.2 patch**：托盘右键三指令（开启自动启停 / 关自动启停+开触控板 / 关自动启停+关触控板）；`ExecuteAutoToggleCommand` 与主 Toggle 共用；
 - **v1.1.1 patch**：移除 `AutostartHandledSessionId`；自启重复判定改 Session Mutex；`ApplyInitialClientBounds` 统一窗口初始尺寸/最小尺寸/居中；二次打开 exe 经 `PostMessage` → `ShowFromTray`；
 - 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；**Release 0108** 已打包（`scripts/build-release.ps1`）；
 - 本地 Git 版本管理（`main` 主干）。

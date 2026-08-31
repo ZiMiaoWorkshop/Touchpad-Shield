@@ -115,6 +115,23 @@ namespace winrt::TouchpadShield::implementation
 
         m_trayIcon.SetShowWindowCallback([this]() { ShowFromTray(); });
         m_trayIcon.SetExitCallback([this]() { RequestExit(); });
+        m_trayIcon.SetAutoToggleCommandCallback([this](UINT cmdId)
+        {
+            switch (cmdId)
+            {
+            case AppServices::TrayIconService::kCmdEnableAuto:
+                ExecuteAutoToggleCommand(AutoToggleCommand::EnableAuto);
+                break;
+            case AppServices::TrayIconService::kCmdDisableAutoEnableTouchpad:
+                ExecuteAutoToggleCommand(AutoToggleCommand::DisableAutoEnableTouchpad);
+                break;
+            case AppServices::TrayIconService::kCmdDisableAutoDisableTouchpad:
+                ExecuteAutoToggleCommand(AutoToggleCommand::DisableAutoDisableTouchpad);
+                break;
+            default:
+                break;
+            }
+        });
 
         Activated([this](IInspectable const&, IInspectable const&)
         {
@@ -1222,14 +1239,9 @@ namespace winrt::TouchpadShield::implementation
         m_inputMonitor.StopWatching();
     }
 
-    void MainWindow::InputAutoTouchpadSwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
+    void MainWindow::ExecuteAutoToggleCommand(AutoToggleCommand command)
     {
-        if (m_inputDeviceSettingsLoading)
-        {
-            return;
-        }
-
-        const bool enabled = InputAutoTouchpadSwitch().IsOn();
+        const bool enabled = command == AutoToggleCommand::EnableAuto;
         m_localSettings.SaveInputAutoTouchpadEnabled(enabled);
 
         if (enabled)
@@ -1245,11 +1257,33 @@ namespace winrt::TouchpadShield::implementation
         {
             ScheduleInputDeviceRefresh();
         }
-        else
+        else if (command == AutoToggleCommand::DisableAutoEnableTouchpad)
         {
             AppServices::TouchpadToggleService toggleService{};
             toggleService.RequestEnabledAsync(true);
         }
+        else if (command == AutoToggleCommand::DisableAutoDisableTouchpad)
+        {
+            AppServices::TouchpadToggleService toggleService{};
+            toggleService.RequestEnabledAsync(false);
+        }
+
+        m_inputDeviceSettingsLoading = true;
+        InputAutoTouchpadSwitch().IsOn(enabled);
+        m_inputDeviceSettingsLoading = false;
+    }
+
+    void MainWindow::InputAutoTouchpadSwitch_Toggled(IInspectable const&, RoutedEventArgs const&)
+    {
+        if (m_inputDeviceSettingsLoading)
+        {
+            return;
+        }
+
+        ExecuteAutoToggleCommand(
+            InputAutoTouchpadSwitch().IsOn()
+                ? AutoToggleCommand::EnableAuto
+                : AutoToggleCommand::DisableAutoEnableTouchpad);
     }
 
     winrt::Windows::Foundation::IAsyncAction MainWindow::InputDeviceRefreshButton_Click(IInspectable const&, RoutedEventArgs const&)

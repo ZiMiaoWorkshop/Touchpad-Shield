@@ -22,6 +22,13 @@
 
 namespace winrt::TouchpadShield::implementation
 {
+    enum class AutoToggleCommand
+    {
+        EnableAuto,
+        DisableAutoEnableTouchpad,
+        DisableAutoDisableTouchpad,
+    };
+
     struct MainWindow : MainWindowT<MainWindow>
     {
         MainWindow();
@@ -110,6 +117,7 @@ namespace winrt::TouchpadShield::implementation
         void AddMonitoredInputDevice(::TouchpadShield::Services::InputDeviceInfo const& device);
         void RemoveMonitoredInputDevice(::TouchpadShield::Services::MonitoredInputDevice const& device);
         void SaveMonitoredInputDevices();
+        void ExecuteAutoToggleCommand(AutoToggleCommand command);
         void ApplyInputAutoTouchpadPolicyLocks();
         void EnforceAutoToggleDependencies();
         void EnforceRunAtStartupDependencies();

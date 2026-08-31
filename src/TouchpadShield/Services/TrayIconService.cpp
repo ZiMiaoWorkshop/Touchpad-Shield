@@ -20,6 +20,11 @@ namespace TouchpadShield::Services
         m_exit = std::move(callback);
     }
 
+    void TrayIconService::SetAutoToggleCommandCallback(AutoToggleCommandCallback callback)
+    {
+        m_autoToggleCommand = std::move(callback);
+    }
+
     HICON TrayIconService::LoadAppIcon() const
     {
         wchar_t modulePath[MAX_PATH]{};
@@ -102,8 +107,12 @@ namespace TouchpadShield::Services
         }
 
         HMENU menu = CreatePopupMenu();
-        AppendMenuW(menu, MF_STRING, 1, L"打开主窗口");
-        AppendMenuW(menu, MF_STRING, 2, L"退出");
+        AppendMenuW(menu, MF_STRING, kCmdEnableAuto, L"开启触控板自动启停");
+        AppendMenuW(menu, MF_STRING, kCmdDisableAutoEnableTouchpad, L"关闭触控板自动启停 + 开启触控板");
+        AppendMenuW(menu, MF_STRING, kCmdDisableAutoDisableTouchpad, L"关闭触控板自动启停 + 关闭触控板");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, kCmdOpenMainWindow, L"打开主窗口");
+        AppendMenuW(menu, MF_STRING, kCmdExit, L"退出");
 
         POINT point{};
         GetCursorPos(&point);
@@ -120,13 +129,20 @@ namespace TouchpadShield::Services
 
         DestroyMenu(menu);
 
-        if (command == 1 && m_showWindow)
+        if (command == kCmdOpenMainWindow && m_showWindow)
         {
             m_showWindow();
         }
-        else if (command == 2 && m_exit)
+        else if (command == kCmdExit && m_exit)
         {
             m_exit();
+        }
+        else if (m_autoToggleCommand &&
+            (command == kCmdEnableAuto ||
+             command == kCmdDisableAutoEnableTouchpad ||
+             command == kCmdDisableAutoDisableTouchpad))
+        {
+            m_autoToggleCommand(command);
         }
     }
 
