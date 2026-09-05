@@ -33,3 +33,25 @@ alwaysApply: true
 ## 需求变更
 
 - 需求理解阶段有疑问必须与用户确认，不可自行决定解决方案
+
+## 版本号与文档同步（发布前必查）
+
+版本号或 BUILD 变更后（含 `bump-build.ps1`、改 `Version.props`、打 Release/Beta 包），**必须**同步并复查以下位置是否与 `version/Version.props` 一致：
+
+| 检查项 | 路径 / 位置 |
+|--------|-------------|
+| 对外版本行 | `README.md` 文首「当前版本」、下载表安装包文件名 |
+| 版本规则示例 | `README.md` §版本号规则表 |
+| 开发指导基线 | `PRD/Touchpad_Shield_开发指导.md` 文首、§5.1 当前基线、§5.2 产物示例、§7.1 标题 |
+| Patch 变更说明 | `PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md` 对应 §七附 / §七附2 |
+| 安装包文件名 | `Touchpad Shield App/release/TouchpadShield-{semver}-build{BUILD}-setup.exe` 与 NSIS 脚本 |
+| Git tag / Release | `v{MAJOR.MINOR.PATCH}-build{BUILD}` |
+
+**提交 git / push / 打 tag 前：** 用 `grep` 或全文搜索旧 BUILD 号（如 `0109`），确认文档与 `Version.props` 无遗漏。
+
+## GitHub Release 发布规范
+
+- 使用 `scripts/publish-github-release.ps1`；Release 简介正文来自 `scripts/release-notes-body.template.md`（或 `-ReleaseNotesFile` 指定 UTF-8 文件）
+- **Windows 上 `gh --notes-file` 必须 UTF-8 BOM**（脚本 `Write-Utf8BomFile` 会校验 BOM）；禁止直接用系统 ANSI 编码的临时文件
+- 发布后立即执行 `gh release view <tag> --repo ZiMiaoWorkshop/Touchpad-Shield`，确认网页简介中文正常、无乱码（如 `姝ｅ紡` 类 mojibake）
+- 若 Release 已存在但简介乱码：`gh release edit <tag> --notes-file <UTF-8 BOM 文件>` 或重跑 `publish-github-release.ps1 -SkipTagPush`

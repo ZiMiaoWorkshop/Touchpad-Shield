@@ -4,7 +4,7 @@
 
 设计与开发：**[ZiMiaoWorkshop](https://github.com/ZiMiaoWorkshop)**
 
-**当前版本：** 1.1.2 build 0109 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
+**当前版本：** 1.1.2 build 0110 · [下载最新发行版](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest)
 
 **v1.1.2 变更：** 托盘右键增加三条自动启停指令（开启 / 关闭并开触控板 / 关闭并关触控板）；主 UI Toggle 不变，逻辑抽到 `ExecuteAutoToggleCommand`。
 
@@ -16,7 +16,7 @@
 
 | 资源 | 说明 |
 |------|------|
-| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（`TouchpadShield-1.1.1-build0108-setup.exe`） |
+| [**最新 Release**](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 正式 NSIS 安装包（`TouchpadShield-1.1.2-build0110-setup.exe`） |
 | [`TouchpadPhysicalSize.csv`](https://github.com/ZiMiaoWorkshop/Touchpad-Shield/releases/latest) | 笔记本触控板物理尺寸预设（仓库内见 [`config/`](config/)） |
 
 > **说明：** 安装包使用自签名 Authenticode 证书（发布者 **ZiMiaoWorkshop**）。首次安装时 Windows SmartScreen 可能提示「未知发布者」。
@@ -191,7 +191,7 @@ Touchpad Shield/
 |------|------|
 | 语义化版本 `MAJOR.MINOR.PATCH` | 人工维护 — `version/Version.props` |
 | 构建号 `BUILD`（4 位） | 源码指纹变动时自动递增 — `scripts/bump-build.ps1` |
-| 界面展示 | `1.1.2 build 0109`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
+| 界面展示 | `1.1.2 build 0110`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
 
 仅文档变更（如 README）**不会**递增构建号。
 
@@ -201,7 +201,7 @@ Touchpad Shield/
 
 | 文档 | 说明 |
 |------|------|
-| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | 开发指导 — UI 规范、架构、构建规则、**§6.1 维护约定**（**v1.1.1 build 0108**） |
+| [`PRD/Touchpad_Shield_开发指导.md`](PRD/Touchpad_Shield_开发指导.md) | 开发指导 — UI 规范、架构、构建规则、**§6.1 维护约定**（**v1.1.2 build 0110**） |
 | [`PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](PRD/Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md) | **v1.0.0 → v1.1.0** 功能变更 + **§七附 v1.1.1 patch** |
 | [`.cursor/rules/touchpad-shield-build.mdc`](.cursor/rules/touchpad-shield-build.mdc) | 自动化工具构建规范 |
 | [`.cursor/rules/touchpad-shield-code.mdc`](.cursor/rules/touchpad-shield-code.mdc) | 代码维护 — 勿重复提议的重构项 |

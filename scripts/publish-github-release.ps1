@@ -1,5 +1,6 @@
 param(
     [string]$Tag = "",
+    [string]$ReleaseNotesFile = "",
     [switch]$SkipTagPush
 )
 
@@ -8,6 +9,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $VersionProps = Join-Path $Root "version\Version.props"
 $ReleaseDir = Join-Path $Root "Touchpad Shield App\release"
 $ConfigCsv = Join-Path $Root "config\TouchpadPhysicalSize.csv"
+$NotesTemplate = Join-Path $PSScriptRoot "release-notes-body.template.md"
 $Repo = "ZiMiaoWorkshop/Touchpad-Shield"
 
 function Get-VersionFromProps {
@@ -22,6 +24,43 @@ function Get-VersionFromProps {
         Build  = $build
         Tag    = "v$major.$minor.$patch-build$build"
     }
+}
+
+function Write-Utf8BomFile {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+    $utf8WithBom = New-Object System.Text.UTF8Encoding $true
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8WithBom)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+        throw "Release notes file is missing UTF-8 BOM: $Path"
+    }
+}
+
+function Get-ReleaseNotesBody {
+    param(
+        [hashtable]$Version,
+        [string]$CustomNotesFile
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($CustomNotesFile)) {
+        if (-not (Test-Path -LiteralPath $CustomNotesFile)) {
+            throw "Custom release notes file not found: $CustomNotesFile"
+        }
+        return Get-Content -LiteralPath $CustomNotesFile -Raw -Encoding UTF8
+    }
+
+    if (-not (Test-Path -LiteralPath $NotesTemplate)) {
+        throw "Release notes template not found: $NotesTemplate"
+    }
+
+    $template = Get-Content -LiteralPath $NotesTemplate -Raw -Encoding UTF8
+    return $template `
+        -replace '\{\{SemVer\}\}', $Version.SemVer `
+        -replace '\{\{Build\}\}', $Version.Build
 }
 
 $version = Get-VersionFromProps -Path $VersionProps
@@ -65,20 +104,11 @@ try {
     }
 
     $releaseTitle = "Touchpad Shield $($version.SemVer) build $($version.Build)"
-    $releaseNotes = @"
-## Touchpad Shield $($version.SemVer) build $($version.Build)
-
-正式版 Release 安装包与触控板物理尺寸配置文件。
-
-- 需要 Windows 10 17763+ / x64 / 管理员权限
-- 发布者：ZiMiaoWorkshop（自签证书）
-- ``TouchpadPhysicalSize.csv`` 也可在仓库 ``config/`` 目录获取
-"@
+    $releaseNotes = Get-ReleaseNotesBody -Version $version -CustomNotesFile $ReleaseNotesFile
 
     $notesFile = Join-Path $env:TEMP "touchpad-shield-release-$Tag.md"
     # gh on Windows reads --notes-file using system ANSI unless UTF-8 BOM is present
-    $utf8WithBom = New-Object System.Text.UTF8Encoding $true
-    [System.IO.File]::WriteAllText($notesFile, $releaseNotes, $utf8WithBom)
+    Write-Utf8BomFile -Path $notesFile -Content $releaseNotes
 
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -109,6 +139,11 @@ try {
 
     if ($LASTEXITCODE -ne 0) {
         throw "gh release command failed with exit code $LASTEXITCODE"
+    }
+
+    $bodyPreview = gh release view $Tag --repo $Repo --json body -q .body
+    if ($bodyPreview -match '[\u00C3\u00E2\u00E6\u00E7\u00E8\u00E9\u00EF\u00F0\u00F1\u00F2\u00F3\u00F4\u00F5\u00F6\u00F8\u00F9\u00FA\u00FB\u00FC\u00FD\u00FE\u00FF]{3,}') {
+        Write-Warning "Release body may contain mojibake. Re-check UTF-8 BOM and run: gh release view $Tag --repo $Repo"
     }
 
     Write-Host "Done. Release: https://github.com/$Repo/releases/tag/$Tag"

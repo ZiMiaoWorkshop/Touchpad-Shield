@@ -1,7 +1,7 @@
 # Touchpad Shield 开发指导
 
-> 本文档基于当前代码库（**v1.1.2 build 0109**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
-> **当前 Release 基线（2026-08-24）：** `1.1.1 build 0108` · 安装包 `Touchpad Shield App/release/TouchpadShield-1.1.1-build0108-setup.exe`（`assemblyIdentity` **1.1.1.108**）。  
+> 本文档基于当前代码库（**v1.1.2 build 0110**）编写，是 Touchpad Shield 的实现说明、构建规范与需求基线。  
+> **当前 Release 基线（2026-09-05）：** `1.1.2 build 0110` · 安装包 `Touchpad Shield App/release/TouchpadShield-1.1.2-build0110-setup.exe`（`assemblyIdentity` **1.1.2.110**）。  
 > 自 v1.0.0 起的版本差异见 [`Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md`](Touchpad_Shield_v1.0.0_to_v1.1.0_变更说明.md)（含 **§七附 v1.1.1 patch**、**§七附2 v1.1.2**）。  
 > 构建规范以 [`.cursor/rules/touchpad-shield-build.mdc`](../.cursor/rules/touchpad-shield-build.mdc) 为准；本文第四节与之保持一致并展开说明。
 
@@ -327,7 +327,7 @@ Mutex 获取成功后，创建 `MainWindow` 并按下列手动 / 自启路径继
 
 （3）右侧固定显示：
 - `Designed and Built by ZiMiaoWorkshop`
-- 版本号：`v{MAJOR.MINOR.PATCH build BUILD}`（当前 Release 示例：`v1.1.1 build 0108`）
+- 版本号：`v{MAJOR.MINOR.PATCH build BUILD}`（当前 Release 示例：`v1.1.2 build 0110`）
 
 ---
 
@@ -448,11 +448,11 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 | 项 | 规则 |
 |----|------|
-| **当前基线** | **1.1.1 build 0108**（`version/Version.props`；Release 无渠道后缀） |
+| **当前基线** | **1.1.2 build 0110**（`version/Version.props`；Release 无渠道后缀） |
 | 语义化版本 | `MAJOR.MINOR.PATCH`，人工维护于 `version/Version.props` |
 | 构建号 | 4 位数字 `BUILD`，**源码变动时自动递增**（`scripts/bump-build.ps1`），不在 CI/CD 空跑时递增 |
 | UI 展示格式 | `MAJOR.MINOR.PATCH build BUILD`；debug 追加 ` (alpha)`，beta 追加 ` (beta)`，release 无后缀 |
-| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（当前 **1.1.1.108**）；**不含**渠道后缀 |
+| Manifest | `assemblyIdentity` 使用四段数字 `MAJOR.MINOR.PATCH.buildInt`（当前 **1.1.2.110**）；**不含**渠道后缀 |
 | 同步 | `scripts/sync-version.ps1` 将版本同步至 NSIS 安装脚本 |
 
 **构建号指纹范围：** `src/`、`scripts/`、`installer/`、`config/`、`Picture/`、`TouchpadShield.sln`、`version/Version.props`、`version/Version.targets`（排除 `build-stamp.json`、`.build-pending.json` 及 NSIS/图标等衍生产物）。
@@ -465,7 +465,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 |------|------|
 | `Touchpad Shield App/debug/` | Debug 可执行文件及依赖（含 `config/`、`Assets/`），启用 debug 日志 |
 | `Touchpad Shield App/beta/` | NSIS 打包的 Debug 版安装包（`*-beta-setup.exe`） |
-| `Touchpad Shield App/release/` | 正式发布 NSIS 安装包（`*-setup.exe`）及 `release/app/` Release 应用文件；当前：`TouchpadShield-1.1.1-build0108-setup.exe` |
+| `Touchpad Shield App/release/` | 正式发布 NSIS 安装包（`*-setup.exe`）及 `release/app/` Release 应用文件；当前：`TouchpadShield-1.1.2-build0110-setup.exe` |
 
 ### 5.3 编译策略
 
@@ -619,7 +619,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 
 ## 七、实现状态与后续规划
 
-### 7.1 当前已实现（v1.1.2 build 0109）
+### 7.1 当前已实现（v1.1.2 build 0110）
 
 - WinUI 3 原生风格 UI、PerMonitorV2 缩放、1560×900 最小窗口、主功能区左/中/右三栏；
 - 灵敏度四件套（含单击灵敏度吸附方案）；
@@ -632,7 +632,7 @@ Release 构建不写入文件日志（`Logger` 在 Release 下为空操作）。
 - **系统托盘**、**计划任务登录自启**、**Session 级单实例**、自动启停/自启开启时强制托盘；
 - **v1.1.2 patch**：托盘右键三指令（开启自动启停 / 关自动启停+开触控板 / 关自动启停+关触控板）；`ExecuteAutoToggleCommand` 与主 Toggle 共用；
 - **v1.1.1 patch**：移除 `AutostartHandledSessionId`；自启重复判定改 Session Mutex；`ApplyInitialClientBounds` 统一窗口初始尺寸/最小尺寸/居中；二次打开 exe 经 `PostMessage` → `ShowFromTray`；
-- 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；**Release 0108** 已打包（`scripts/build-release.ps1`）；
+- 构建号自动递增、Debug/Beta/Release 分包、config 强制同步、ZiMiaoWorkshop 代码签名；**Release 0110** 已打包（`scripts/build-release.ps1`）；
 - 本地 Git 版本管理（`main` 主干）。
 
 ### 7.2 尚未实现（后续可规划）

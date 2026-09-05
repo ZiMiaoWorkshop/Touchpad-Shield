@@ -359,7 +359,7 @@ v1.0.0 开发指导模块表未包含以下组件；v1.1.0 新增：
 
 | 项 | 说明 |
 |----|------|
-| **版本** | **1.1.2**（patch；当前源码 build **0109**） |
+| **版本** | **1.1.2 build 0110**（patch；Release 安装包 `TouchpadShield-1.1.2-build0110-setup.exe`） |
 | **托盘菜单** | 三条纯指令：开启触控板自动启停；关闭触控板自动启停 + 开启触控板；关闭触控板自动启停 + 关闭触控板 |
 | **实现** | `ExecuteAutoToggleCommand` 与主 UI Toggle 共用；`RequestEnabledAsync` 复用既有 state guard |
 | **主 UI** | 不改 XAML；Toggle 关仍等价「+ 开启触控板」 |
